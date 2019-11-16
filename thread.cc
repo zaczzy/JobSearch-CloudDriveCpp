@@ -9,6 +9,7 @@
 
 #include "socket.h"
 #include "key_value.h"
+#include "key_value.h"
 
 extern bool verbose;
 extern volatile bool terminate;

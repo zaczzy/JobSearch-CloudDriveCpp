@@ -9,9 +9,35 @@
 #include <unordered_map>
 #include "socket.h"
 
+#include "data_types.h"
+
+typedef enum 
+{
+   DRIVE,
+   MAIL
+}request_type;
+
+typedef union
+{
+   mail_request mail_r;
+   drive_request drive_r;
+}request_content;
+
+typedef struct
+{
+    request_type r_type;
+    request_content content;
+}bigtable_column;
+
+typedef struct
+{
+    std::string password;
+    std::unordered_map<std::string, bigtable_column> row;
+
+}bigtable_row;
+
 /** Map to store key value pairs */
-std::unordered_map<std::string, void*> bigtable_row;
-std::unordered_map<std::string, 
+std::unordered_map<std::string, bigtable_row> bigtable; 
 
 bool process_command(char* buffer, int len, int fd)
 {
