@@ -1,4 +1,7 @@
 
+#define SUCCESS         0
+#define FAILURE         1
+
 typedef struct
 {
     char* prefix;

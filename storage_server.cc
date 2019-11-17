@@ -13,12 +13,11 @@
 #include <errno.h>
 #include <unordered_map>
 
+#include "data_types.h"
 #include "socket.h"
 #include "thread.h"
 
 #define IP_ADDRESS_LEN  16
-#define SUCCESS         0
-#define FAILURE         1
 
 bool verbose = false;
 volatile bool terminate = false;
