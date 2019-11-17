@@ -121,6 +121,7 @@ public:
 	SingleConnServerHTML();
 	~SingleConnServerHTML();
 	int sendMsg(int sock, string msg);
+	void sendStatus(int statusCode);
 	int handleGET(struct request_struct* r);
 	int handlePOST(struct request_struct* r);
 	int handleRequest(struct request_struct* r, string req);
@@ -130,12 +131,39 @@ private:
 	string webroot;
 	string requestURI;
 	bool loggedIn;
+	map<int, string> status2reason;
 };
 
 SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
 	loggedIn = False;
+	status2reason = {
+			{200, "OK"},
+			{201, "Created"},
+			{202, "Accepted"},
+			{204, "No Content"},
+			{205, "Reset Content"},
+			{206, "Partial Content"},
+			{300, "Multiple Choices"},
+			{301, "Moved Permanently"},
+			{304, "Not Modified"},
+			{307, "Temporary Redirect"},
+			{308, "Permanent Redirect"},
+			{400, "Bad Request"},
+			{401, "Unauthorized"},
+			{402, "Payment Required lol"},
+			{403, "Forbidden"},
+			{404, "Not Found"},
+			{429, "Too Many Requests"},
+			{451, "Unavailable For Legal Reasons"},
+			{500, "Internal Server Error"},
+			{501, "Not Implemented"},
+			{502, "Bad Gateway"},
+			{503, "Service Unavailable"},
+			{504, "Gateway Timeout"},
+			{505, "HTTP Version Not Supported"}
+	};
 }
 
 SingleConnServerHTML()::~SingleConnServerHTML() {
@@ -155,17 +183,40 @@ int SingleConnServerHTML::sendMsg(string msg) {
 	return 1;
 }
 
+void SingleConnServerHTML::sendStatus(int statusCode) {
+	//get corresponding reason in words
+	string reason = status2reason[statusCode];
+	//status line
+	string statusLine = "HTTP/1.0" + toString(statusCode) + reason + "\r\n";
+	//no headers
+	statusLine += "\r\n";
+	//format in HTML if not 200
+	if (statusCode != 200) {
+		string body =
+				"<html><body><h1>" +
+				statusCode + " " + reason +
+				"</h1></body></html>";
+		statusLine += body;
+	}
+
+	sendMsg(statusLine);
+}
+
 void SingleConnServerHTML::handleGET() {
 	string HTML = "";
 	string HTMLfull = "";
 
 	if (!loggedIn) {
+		sendStatus(200);
+
 		//serve login HTML
 		sendMsg(HTMLfull);
 		return;
 	}
 
 	if (requestURI.compare("index.html") == 0 || requestURI.compare("") == 0) {
+		if (requestURI.compare("") == 0)
+			requestURI = "/";
 		sendMsg(HTMLfull);
 	}
 	else if (requestURI.compare("mail.html") == 0) {
@@ -186,10 +237,11 @@ void SingleConnServerHTML::handlePOST() {
 	//for login POST, check against hardcoded user/pass
 }
 
-int SingleConnServerHTML::handleRequest(string req) {
+int SingleConnServerHTML::handleRequest(char *req) {
 	if (VERBOSE)
 		fprintf(stderr, "[%d] C: %s %s\n", clntSock, (char *)req.c_str());
 
+	//serve
 	if (req.compare("GET") == 0) {
 		handleGET();
 	}
@@ -229,20 +281,36 @@ void SingleConnServerHTML::mainloop() {
 		}
 
 		char *delim = " ";
-		char *req = strtok(requestLine, delim);
+		char *c_req = strtok(requestLine, delim);
 		char *reqURI = strtok(NULL, delim);
 		char *httpVersion = strtok(NULL, delim);
 		char *extraGarbage = strtok(NULL, delim);
 
-		string s_req = req;
 		requestURI = reqURI;
+		string req = c_req;
 
-		if (commands.find(s_req) == commands.end()){
+		//check valid request
+		if (commands.find(req) == commands.end()){
 			//send status 500
 			continue;
 		}
 
-		handleRequest(s_req);
+		//check first character in URI is "/"
+		if (requestURI[0] != "/") {
+			//send status 400
+			continue;
+		}
+
+		//skip remaining headers
+		while (true) {
+			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL)) {
+				//send status 400
+			}
+			if (strcmp(line, "\r\n") == 0)
+				break;
+		}
+
+		handleRequest(req);
 	}
 }
 
@@ -293,7 +361,7 @@ int main(int argc, char *argv[])
 	//non option arguments
 	if (optind >= argc)
 		die("*** Author: Michal Porubcin (michal19)\n", -1, false);
-	webroot = argv[optind]; //ensure ending "/"
+	webroot = argv[optind];
 
 	//Start serving
 	int servSock = createServerSocket(port);
