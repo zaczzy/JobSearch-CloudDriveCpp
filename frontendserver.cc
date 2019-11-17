@@ -116,72 +116,99 @@ int createServerSocket(unsigned short port){
 	return servSock;
 }
 
+class SingleConnServerHTML {
+public:
+	SingleConnServerHTML();
+	~SingleConnServerHTML();
+	int sendMsg(int sock, string msg);
+	int handleGET(struct request_struct* r);
+	int handlePOST(struct request_struct* r);
+	int handleRequest(struct request_struct* r, string req);
+	void mainloop();
+private:
+	int sock;
+	string webroot;
+	string requestURI;
+	bool loggedIn;
+};
+
+SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
+	sock(sock), webroot(webroot) {
+	requestURI = "";
+	loggedIn = False;
+}
+
+SingleConnServerHTML()::~SingleConnServerHTML() {
+
+}
+
 /*
  * Send a message to the client over provided socket.
  */
-int sendMsg(int sock, string msg) {
+int SingleConnServerHTML::sendMsg(string msg) {
 	char *m = (char *)msg.c_str();
 	int i = write(sock, m, strlen(m));
 	if (shutdownFlag || i < 0)
-		end(sock);
+		die("Shutdown flag", sock, true);
 	if (VERBOSE)
 		fprintf(stderr, "[%d] S: %s", sock, m);
 	return 1;
 }
 
-int handleGET(struct request_struct* r, string req) {
-	string URI = r->requestURI;
-	if (URI.compare("index.html") == 0 || URI.compare("") == 0) {
-		//if logged in serve index
-		//else serve login page
+void SingleConnServerHTML::handleGET() {
+	string HTML = "";
+	string HTMLfull = "";
+
+	if (!loggedIn) {
+		//serve login HTML
+		sendMsg(HTMLfull);
+		return;
+	}
+
+	if (requestURI.compare("index.html") == 0 || requestURI.compare("") == 0) {
+		sendMsg(HTMLfull);
+	}
+	else if (requestURI.compare("mail.html") == 0) {
+		//fetch mailbox
+		sendMsg(HTMLfull);
+	}
+	else if (requestURI.compare("storage.html") == 0) {
+		//fetch storage
+		sendMsg(HTMLfull);
+	}
+	else {
+		//404 not found
 	}
 }
 
-int handlePOST(struct request_struct* r, string req) {
+void SingleConnServerHTML::handlePOST() {
+
 	//for login POST, check against hardcoded user/pass
 }
 
-int handleRequest(struct request_struct* r, string req) {
+int SingleConnServerHTML::handleRequest(string req) {
 	if (VERBOSE)
 		fprintf(stderr, "[%d] C: %s %s\n", clntSock, (char *)req.c_str());
 
 	if (req.compare("GET") == 0) {
-		handleGET(r, req);
+		handleGET();
 	}
 	else if (req.compare("POST") == 0) {
-		handlePOST(r, req);
+		handlePOST();
 	}
 }
 
-/*
- * Callback from main thread upon initialization of worker thread.
- * Reads HTTP request from the client into a buffer and processes it with handleRequest()
- * if a valid request is found.
- */
-void *threadFunc(void *args){
-	struct thread_struct *a = (struct thread_struct *)args;
-	int clntSock = (intptr_t)(a->clntSock);
-	string webroot = (string)(a->webroot);
-	FILE *clntFp = fdopen(clntSock, "r");
+void SingleConnServerHTML::mainloop() {
+	FILE *clntFp = fdopen(sock, "r");
 	if (clntFp == NULL)
-		die("fdopen error", clntSock, true);
+		die("fdopen error", sock, true);
 
-	//Socket opened, let's go
-	sendMsg(clntSock, "+OK server ready [localhost]\r\n");
-
-	loggedIn = false;
-	string buffer = "";
 	char requestLine[BUFF_SIZE];
 	while (true) {
 		memset(requestLine, 0, sizeof(requestLine));
-		string command = "";
-		string extraGarbage = "";
-		size_t pos1, pos2 = 0;
-		bool errorFlag = false;
 
-		int i;
 		struct pollfd fds[1];
-		fds[0].fd = clntSock;
+		fds[0].fd = sock;
 		fds[0].events = POLLIN;
 		int ret = poll(fds, 1, 500);
 		//poll error
@@ -194,34 +221,44 @@ void *threadFunc(void *args){
 		if (fds[0].revents & POLLIN)
 			i = read(clntSock, requestLine, sizeof(requestLine)-1);
 
-		if (shutdownFlag || i < 0)
+		if (shutdownFlag)
 			die("shutdown", clntSock, true);
 
-		if(fgets(requestLine, sizeof(requestLine, clntFp) == NULL)) {
+		if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL)) {
 			//send status 400
 		}
 
 		char *delim = " ";
 		char *req = strtok(requestLine, delim);
-		char *requestURI = strtok(NULL, delim);
+		char *reqURI = strtok(NULL, delim);
 		char *httpVersion = strtok(NULL, delim);
 		char *extraGarbage = strtok(NULL, delim);
 
 		string s_req = req;
-		string s_requestURI = requestURI;
+		requestURI = reqURI;
 
 		if (commands.find(s_req) == commands.end()){
 			//send status 500
 			continue;
 		}
 
-		struct request_struct r;
-		r.clntSock = clntSock;
-		r.webroot = webroot;
-		r.requestURI = s_requestURI;
-
-		handleRequest(&r, s_req);
+		handleRequest(s_req);
 	}
+}
+
+/*
+ * Callback from main thread upon initialization of worker thread.
+ * Reads HTTP request from the client into a buffer and processes it with handleRequest()
+ * if a valid request is found.
+ */
+void *threadFunc(void *args){
+	struct thread_struct *a = (struct thread_struct *)args;
+	int clntSock = (intptr_t)(a->clntSock);
+	string webroot = (string)(a->webroot);
+
+	SingleConnServerHTML S(clntSock, webroot);
+	S.sendMsg("+OK server ready [localhost]\r\n");
+	S.mainloop();
 }
 
 int main(int argc, char *argv[])
