@@ -28,33 +28,37 @@ typedef union
 //{
 //    request_type r_type;
 //    request_content content;
-//}bigtable_column;
+//}tablet_column;
 
 typedef struct
 {
     char* value;
-}bigtable_column;
+}tablet_column;
 
-typedef std::unordered_map<std::string, bigtable_column> map_bigtable_row;
+typedef std::unordered_map<std::string, tablet_column> map_tablet_row;
 typedef struct
 {
+    std::string email_id;
     std::string password;
-    map_bigtable_row columns;
-}bigtable_row;
+    map_tablet_row columns;
+}tablet_row;
 
-typedef std::unordered_map<std::string, bigtable_row> map_bigtable;
+typedef std::unordered_map<std::string, tablet_row> map_tablet;
 
 extern bool verbose;
 
 /** Map to store key value pairs */
-map_bigtable bigtable; 
+map_tablet tablet; 
 
 bool put(char* row, char* column, char* data)
 {
-    map_bigtable::iterator itr;
+    // TODO: Remove
+    printf("row: %s column: %s column len: %d\n", row, column, strlen(column));
+
+    map_tablet::iterator itr;
     
     /** Check if the row exists */
-    if ((itr = bigtable.find(std::string(row))) == bigtable.end())
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
     {
         if (verbose)
             printf("no row %s exists\n", row);
@@ -63,12 +67,15 @@ bool put(char* row, char* column, char* data)
     }
 
     /** If this column doesn't already exist */
-    map_bigtable_row:: iterator row_itr; 
+    map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
     {
+        if (verbose)
+            printf("col doesn't already exist\n");
+
         /** Add the new column to this row */
         // TODO: Allocate dynamic memory to data when put() function is called
-        bigtable_column col;
+        tablet_column col;
         col.value = data;
         itr->second.columns.insert(std::make_pair(std::string(column), col));
 
@@ -78,45 +85,86 @@ bool put(char* row, char* column, char* data)
     /** Column already exists */
     else
     {
+        if (verbose)
+            printf("col already exists, just update valu, old value : %s\n", row_itr->second.value);
+
        row_itr->second.value = data; 
     }
 
     return SUCCESS;
 }
 
-char* get(char* row, char* column)
+int get(char* row, char* column, char** data)
 {
-    map_bigtable::iterator itr;
+    printf("row: %s column: %s column len: %d\n", row, column, strlen(column));
+
+    map_tablet::iterator itr;
     
     /** Check if the row exists */
-    if ((itr = bigtable.find(std::string(row))) == bigtable.end())
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
     {
         if (verbose)
             printf("no row %s exists\n", row);
 
-        return NULL;
+        return FAILURE;
     }
 
-    /** Check if the column exists */
-    map_bigtable_row:: iterator row_itr; 
+    printf("inter: row: %s column: %s\n", row, column);
+    
+    /** If this column doesn't already exist */
+    map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
     {
         if (verbose)
-            printf("no column %s exists in row %s\n", column, row);
+            printf("given column doesn't exist in row %s\n", row);
 
-        return NULL;
+        return -1;
+    }
+    
+    /** Get and return the value in column */
+    // TODO : Remove
+    *data = row_itr->second.value;
+    return strlen(row_itr->second.value); 
+#if 0
+    // TODO: Remove
+    printf("row: %s column: %s\n", row, column);
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row %s exists\n", row);
+
+        return -1;
+    }
+
+    /** Check if the column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
+    {
+        if (verbose)
+            printf("given column doesn't exist in row %s\n", row);
+
+        return -1;
     }
 
     /** Get and return the value in column */
-    return row_itr->second.value; 
+    data = row_itr->second.value;
+    return strlen(row_itr->second.value); 
+#endif
 }
 
 bool cput(char* row, char* column, char* old_data, char* data)
 {
-    map_bigtable::iterator itr;
+    // TODO: Remove
+    printf("row: %s column: %s\n", row, column);
+
+    map_tablet::iterator itr;
     
     /** Check if the row exists */
-    if ((itr = bigtable.find(std::string(row))) == bigtable.end())
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
     {
         if (verbose)
             printf("no row %s exists\n", row);
@@ -125,7 +173,7 @@ bool cput(char* row, char* column, char* old_data, char* data)
     }
 
     /** Check if this column exists */
-    map_bigtable_row:: iterator row_itr; 
+    map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
     {
         if (verbose)
@@ -152,10 +200,13 @@ bool cput(char* row, char* column, char* old_data, char* data)
 
 bool delete_entry(char* row, char* column)
 {
-    map_bigtable::iterator itr;
+    // TODO: Remove
+    printf("row: %s column: %s\n", row, column);
+
+    map_tablet::iterator itr;
     
     /** Check if the row exists */
-    if ((itr = bigtable.find(std::string(row))) == bigtable.end())
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
     {
         if (verbose)
             printf("no row %s exists\n", row);
@@ -164,7 +215,7 @@ bool delete_entry(char* row, char* column)
     }
 
     /** Check if this column exists */
-    map_bigtable_row:: iterator row_itr; 
+    map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
     {
         if (verbose)
@@ -181,10 +232,10 @@ bool delete_entry(char* row, char* column)
 
 bool add_user(char* username, char* password)
 {
-    map_bigtable::iterator itr;
+    map_tablet::iterator itr;
     
     /** Check if this username already exists */
-    if ((itr = bigtable.find(std::string(username))) != bigtable.end())
+    if ((itr = tablet.find(std::string(username))) != tablet.end())
     {
         if (verbose)
             printf("user %s already exists\n", username);
@@ -193,20 +244,20 @@ bool add_user(char* username, char* password)
     }
 
     /** Add a new user with this username and password */
-    bigtable_row row;
+    tablet_row row;
     row.password = std::string(password);
 
-    bigtable.insert(std::make_pair(username, row));
+    tablet.insert(std::make_pair(username, row));
 
     return SUCCESS;
 }
 
 bool delete_user(char* username, char* password)
 {
-    map_bigtable::iterator itr;
+    map_tablet::iterator itr;
     
     /** Check if this username exists */
-    if ((itr = bigtable.find(std::string(username))) == bigtable.end())
+    if ((itr = tablet.find(std::string(username))) == tablet.end())
     {
         if (verbose)
             printf("user %s doesn't exist\n", username);
@@ -215,38 +266,174 @@ bool delete_user(char* username, char* password)
     }
 
     /** Delete the user with this username */
-    bigtable.erase(itr);
+    tablet.erase(itr);
 
     return SUCCESS;
 }
 
 bool process_command(char* buffer, int len, int fd)
 {
-#if 0
-    char* command = strtok(buffer, " \r");
+    char message[64];
 
-    /** echo command */
-    if (strcmp(command, "echo") == 0 || strcmp(command, "ECHO") == 0)
-    {
-        strncpy(buffer + 1, "+OK ", 4);
-        send_msg_to_socket(buffer + 1, len - 1, fd);
-    }
-    /** quit command */
-    else if (strcmp(command, "quit") == 0 || strcmp(command, "QUIT") == 0)
-    {
-        const char* response = "+OK Goodbye!\r\n";
-        send_msg_to_socket(response, strlen(response), fd);
+    // TODO: remove
+    printf("command: %send len: %d\n", buffer, len);
 
-        return true;
+    char* command = strtok(buffer, " ");
+
+    if (command == NULL)
+        return SUCCESS;
+
+    /** add user command */
+    if (strcmp(command, "add") == 0 || strcmp(command, "ADD") == 0)
+    {
+        char* username = strtok(NULL, " ");
+        char* password = strtok(NULL, " ");
+
+        /** Add the user */
+        bool res = add_user(username, password);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK user added", strlen("+OK user added"));
+        else
+            strncpy(message, "-ERR can't add user", strlen("-ERR can't add user"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message) + 1, fd);
+
+        return SUCCESS;
     }
-    /** unknown command */
+    /** delete user command */
+    else if (strcmp(command, "delete") == 0 || strcmp(command, "DELETE") == 0)
+    {
+        char* username = strtok(NULL, " ");
+        char* password = strtok(NULL, " ");
+
+        /** Delete the user */
+        bool res = delete_user(username, password);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK user deleted", strlen("+OK user deleted"));
+        else
+            strncpy(message, "-ERR user not deleted", strlen("-ERR user not deleted"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+
+        return SUCCESS;
+    }
+    /** put command */
+    else if (strcmp(command, "put") == 0 || strcmp(command, "PUT") == 0)
+    {
+        char* row = strtok(NULL, " ");
+        char* col = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+
+        // TODO: value NULL check
+
+        char* data = (char*)malloc(strlen(value));
+
+        // TODO: Malloc error check
+
+        strncpy(data, value, strlen(value));
+        
+        /** Put the new entry */
+        bool res = put(row, col, data);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK value put", strlen("+OK value put"));
+        else
+            strncpy(message, "-ERR can't put value", strlen("-ERR can't put value"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+            
+        return SUCCESS;
+    }
+    /** get command */
+    else if (strcmp(command, "get") == 0 || strcmp(command, "GET") == 0)
+    {
+        char* row = strtok(NULL, " ");
+        char* col = strtok(NULL, " ");
+        char* value = NULL;
+
+        /** Get the entry */
+        int len = get(row, col, &value);
+
+        printf("data: %s len: %d\n", value, strlen(value));
+        
+        // TODO: CHeck for NULL value
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(value, len, fd);
+            
+        return SUCCESS;
+    }
+    /** cput command */
+    else if (strcmp(command, "cput") == 0 || strcmp(command, "CPUT") == 0)
+    {
+        char* row = strtok(NULL, " ");
+        char* col = strtok(NULL, " ");
+        char* old_value = strtok(NULL, " ");
+        char* value = strtok(NULL, " ");
+
+        // TODO: value, old_value NULL check
+
+        char* data = (char*)malloc(strlen(value));
+
+        // TODO: Malloc error check
+
+        strncpy(data, value, strlen(value));
+        
+        /** Put the new entry */
+        bool res = cput(row, col, old_value, data);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK value put", strlen("+OK value put"));
+        else
+            strncpy(message, "-ERR can't put value", strlen("-ERR can't put value"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+            
+        return SUCCESS;
+    }
+    /** delete command */
+    else if (strcmp(command, "del") == 0 || strcmp(command, "DEL") == 0)
+    {
+        char* row = strtok(NULL, " ");
+        char* col = strtok(NULL, " ");
+
+        /** Delete this column */
+        bool res = delete_entry(row, col);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK value deleted", strlen("+OK value deleted"));
+        else
+            strncpy(message, "-ERR can't delete value", strlen("-ERR can't delete value"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
     else
     {
-        const char* response = "-ERR Unknown command\r\n";
-        send_msg_to_socket(response, strlen(response), fd);
+        strncpy(message, "-ERR unknown command", strlen("-ERR unknown command"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
     }
-#endif
-    return false;
+
+   return FAILURE;
 }
 
 

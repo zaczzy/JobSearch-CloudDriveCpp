@@ -67,8 +67,8 @@ void* read_commands(void* args)
 
                 if (buffer[len - 1] == '\n')
                 {
-                    //buffer[len] = '\0';
-                    bool close_connection = process_command(buffer, len, *client_fd);
+                    buffer[len - 2] = '\0';
+                    bool close_connection = process_command(buffer, len - 1, *client_fd);
                     
                     if (close_connection)
                         goto term;
