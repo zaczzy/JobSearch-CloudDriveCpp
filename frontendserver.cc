@@ -27,10 +27,6 @@ bool VERBOSE = false;
 bool shutdownFlag = false;
 map<string, pthread_mutex_t> locks;
 set<pthread_t> threads;
-set<string> commands = {
-	"GET",
-	"POST"
-};
 
 /*
  * Struct for passing multiple parameters to threadFunc()
@@ -120,17 +116,19 @@ class SingleConnServerHTML {
 public:
 	SingleConnServerHTML();
 	~SingleConnServerHTML();
+	void mainloop();
+private:
 	int sendMsg(int sock, string msg);
 	void sendStatus(int statusCode);
 	int handleGET(struct request_struct* r);
 	int handlePOST(struct request_struct* r);
 	int handleRequest(struct request_struct* r, string req);
-	void mainloop();
-private:
+
 	int sock;
 	string webroot;
 	string requestURI;
 	bool loggedIn;
+	set<string> commands;
 	map<int, string> status2reason;
 };
 
@@ -138,6 +136,10 @@ SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
 	loggedIn = False;
+	commands = {
+		"GET",
+		"POST"
+	};
 	status2reason = {
 			{200, "OK"},
 			{201, "Created"},
@@ -202,52 +204,69 @@ void SingleConnServerHTML::sendStatus(int statusCode) {
 	sendMsg(statusLine);
 }
 
-void SingleConnServerHTML::handleGET() {
+/*
+ * Read in an html file.
+ */
+string SingleConnServerHTML::readHTMLFromFile(string fname) {
 	string HTML = "";
-	string HTMLfull = "";
 
+	//read config file
+	ifstream infile(fname);
+	if (!infile)
+		die("Can't open config file", -1);
+	string line;
+	while (getline(infile, line)) {
+		HTML += line;
+	}
+
+	return HTML;
+}
+
+/*
+ * Handle GET request
+ */
+void SingleConnServerHTML::handleGET() {
 	if (!loggedIn) {
 		sendStatus(200);
-
-		//serve login HTML
-		sendMsg(HTMLfull);
+		//read from templates/login.html
+		string HTML = readHTMLFromFile("login.html");
+		//serve login page
+		sendMsg(HTML);
 		return;
 	}
 
 	if (requestURI.compare("index.html") == 0 || requestURI.compare("") == 0) {
+		sendStatus(200);
 		if (requestURI.compare("") == 0)
 			requestURI = "/";
-		sendMsg(HTMLfull);
+		//read from templates/index.html
+		string HTML = readHTMLFromFile("index.html");
+		//serve landing page
+		sendMsg(HTML);
 	}
 	else if (requestURI.compare("mail.html") == 0) {
-		//fetch mailbox
-		sendMsg(HTMLfull);
+		sendStatus(200);
+		//read from templates/mail.html
+		string HTML = readHTMLFromFile("mail.html");
+		//serve mail page
+		sendMsg(HTML);
 	}
-	else if (requestURI.compare("storage.html") == 0) {
-		//fetch storage
-		sendMsg(HTMLfull);
-	}
+//	else if (requestURI.compare("storage.html") == 0) {
+//		sendStatus(200);
+//		//read from templates/storage.html
+//		string HTML = readHTMLFromFile("storage.html");
+//		//serve storage page
+//		sendMsg(HTML);
+//	}
 	else {
-		//404 not found
+		sendStatus(400);
 	}
 }
 
 void SingleConnServerHTML::handlePOST() {
-
+	//YOU WERE HERE
+	//parse login data e.g. user=michal&pass=porubcin
 	//for login POST, check against hardcoded user/pass
-}
-
-int SingleConnServerHTML::handleRequest(char *req) {
-	if (VERBOSE)
-		fprintf(stderr, "[%d] C: %s %s\n", clntSock, (char *)req.c_str());
-
-	//serve
-	if (req.compare("GET") == 0) {
-		handleGET();
-	}
-	else if (req.compare("POST") == 0) {
-		handlePOST();
-	}
 }
 
 void SingleConnServerHTML::mainloop() {
@@ -255,6 +274,7 @@ void SingleConnServerHTML::mainloop() {
 	if (clntFp == NULL)
 		die("fdopen error", sock, true);
 
+	sendMsg("+OK server ready [localhost]\r\n");
 	char requestLine[BUFF_SIZE];
 	while (true) {
 		memset(requestLine, 0, sizeof(requestLine));
@@ -277,7 +297,7 @@ void SingleConnServerHTML::mainloop() {
 			die("shutdown", clntSock, true);
 
 		if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL)) {
-			//send status 400
+			sendStatus(400);
 		}
 
 		char *delim = " ";
@@ -291,26 +311,41 @@ void SingleConnServerHTML::mainloop() {
 
 		//check valid request
 		if (commands.find(req) == commands.end()){
-			//send status 500
+			sendStatus(500);
 			continue;
 		}
 
 		//check first character in URI is "/"
 		if (requestURI[0] != "/") {
-			//send status 400
+			sendStatus(400);
 			continue;
 		}
 
 		//skip remaining headers
 		while (true) {
-			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL)) {
-				//send status 400
-			}
+			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL))
+				sendStatus(400);
 			if (strcmp(line, "\r\n") == 0)
 				break;
 		}
+		memset(requestLine, 0, sizeof(requestLine));
 
-		handleRequest(req);
+		if (VERBOSE)
+			fprintf(stderr, "[%d] C: %s %s\n", clntSock, (char *)req.c_str());
+
+		if (req.compare("GET") == 0) {
+			handleGET();
+		}
+		else if (req.compare("POST") == 0) {
+			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL))
+				sendStatus(400);
+			string body = requestLine;
+			handlePOST(body);
+		}
+		else {
+			sendStatus(501);
+		}
+
 	}
 }
 
@@ -325,7 +360,6 @@ void *threadFunc(void *args){
 	string webroot = (string)(a->webroot);
 
 	SingleConnServerHTML S(clntSock, webroot);
-	S.sendMsg("+OK server ready [localhost]\r\n");
 	S.mainloop();
 }
 
