@@ -57,10 +57,10 @@ static void sigintHandler(int signum)
 /*
  * Function for exiting cleanly
  */
-void die(const char *msg, int sock, bool isThread=true){
+void die(string msg, int sock, bool isThread=true){
 	if (sock > 0)
 		close(sock);
-	fprintf(stderr, "%s", msg);
+	cerr << msg;
 	if (isThread) {
 		threads.erase(pthread_self());
 		pthread_exit(NULL);
@@ -188,7 +188,7 @@ int SingleConnServerHTML::sendMsg(string msg) {
 	char *m = (char *)msg.c_str();
 	int i = write(sock, m, strlen(m));
 	if (shutdownFlag || i < 0)
-		die("Shutdown flag", sock);
+		die("Shutdown flag or write fail", sock);
 	if (VERBOSE)
 		fprintf(stderr, "[%d] S: %s\n", sock, m);
 	return 1;
@@ -221,8 +221,10 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 
 	//read config file
 	ifstream infile(fname);
-	if (!infile)
-		die("Can't open config file", -1);
+	if (!infile) {
+		string msg = "Can't open " + fname + "\n";
+		die(msg, -1);
+	}
 	string line;
 	while (getline(infile, line)) {
 		HTML += line;
@@ -240,9 +242,10 @@ void SingleConnServerHTML::handleGET() {
 	if (!loggedIn) {
 		sendStatus(200);
 		//read from templates/login.html
-		string HTML = readHTMLFromFile("login.html");
+		string HTML = readHTMLFromFile("templates/login.html");
 		//serve login page
 		sendMsg(HTML);
+		close(sock);
 		return;
 	}
 
@@ -307,10 +310,10 @@ void SingleConnServerHTML::mainloop() {
 	if (clntFp == NULL)
 		die("fdopen error", sock);
 
-	//send login to start
-	sendStatus(200);
-	string HTML = readHTMLFromFile("templates/login.html");
-	sendMsg(HTML);
+//	//send login to start
+//	sendStatus(200);
+//	string HTML = readHTMLFromFile("templates/login.html");
+//	sendMsg(HTML);
 
 	if (VERBOSE)
 		fprintf(stderr, "[%d] S: +OK server ready [localhost]\r\n", sock);
@@ -320,19 +323,22 @@ void SingleConnServerHTML::mainloop() {
 			fprintf(stderr, "[%d] S: Waiting...\r\n", sock);
 		memset(requestLine, 0, sizeof(requestLine));
 
-		struct pollfd fds[1];
-		fds[0].fd = sock;
-		fds[0].events = POLLIN;
-		int ret = poll(fds, 1, 500);
-		//poll error
-		if (ret == -1)
-			die("poll error", sock);
-		//retry on timeout and empty buffer (no prev. commands)
-		if (!ret)
-			continue;
-		//clntSock is readable
-		if (fds[0].revents & POLLIN)
-			read(sock, requestLine, sizeof(requestLine)-1);
+//		struct pollfd fds[1];
+//		fds[0].fd = sock;
+//		fds[0].events = POLLIN;
+//		int ret = poll(fds, 1, 500);
+//		//poll error
+//		if (ret == -1)
+//			die("poll error", sock);
+//		//retry on timeout and empty buffer (no prev. commands)
+//		if (!ret) {
+//			if (VERBOSE)
+//				fprintf(stderr, "[%d] S: POLL FAIL\n", sock);
+//			continue;
+//		}
+//		//clntSock is readable
+//		if (fds[0].revents & POLLIN)
+//			read(sock, requestLine, sizeof(requestLine)-1);
 
 		if (shutdownFlag)
 			die("shutdown", sock);
@@ -341,7 +347,7 @@ void SingleConnServerHTML::mainloop() {
 			sendStatus(400);
 
 		if (VERBOSE)
-			fprintf(stderr, "[%d] dee S: %s", sock, requestLine);
+			fprintf(stderr, "[%d] dee S: %s\n", sock, requestLine);
 
 		char *delim = " ";
 		char *c_req = strtok(requestLine, delim);
@@ -365,8 +371,8 @@ void SingleConnServerHTML::mainloop() {
 		}
 		requestURI = reqURI;
 
-		if (VERBOSE)
-			fprintf(stderr, "[%s, %s, %s] checkpoint 1", c_req, reqURI, httpVersion);
+//		if (VERBOSE)
+//			fprintf(stderr, "[%s, %s, %s] checkpoint 1\n", c_req, reqURI, httpVersion);
 
 		//skip remaining headers
 		while (true) {
@@ -378,10 +384,7 @@ void SingleConnServerHTML::mainloop() {
 		memset(requestLine, 0, sizeof(requestLine));
 
 		if (VERBOSE)
-			fprintf(stderr, "[] checkpoint 2");
-
-//		if (VERBOSE)
-//			fprintf(stderr, "[%d] C: %s\n", sock, (char *)req.c_str());
+			fprintf(stderr, "checkpoint 2\n");
 
 		if (req.compare("GET") == 0) {
 			handleGET();
