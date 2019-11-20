@@ -2,14 +2,16 @@
 #define SUCCESS         0
 #define FAILURE         1
 
+#pragma pack(1)
 typedef struct
 {
-    char* prefix[5]
+    char prefix[5];
     char username[32];
     char password[16];
 
 }login_request;
 
+#pragma pack(1)
 typedef struct 
 {
     char from[64];
@@ -18,6 +20,7 @@ typedef struct
     char date[64];
 }email_header;
 
+#pragma pack(1)
 typedef struct
 {
     char prefix[5];
@@ -27,6 +30,7 @@ typedef struct
     uint64_t email_len;
 }mail_request;
 
+#pragma pack(1)
 typedef struct
 {
     char prefix[5];
