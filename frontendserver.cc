@@ -122,7 +122,6 @@ private:
 	void sendStatus(int statusCode);
 	int handleGET(struct request_struct* r);
 	int handlePOST(struct request_struct* r);
-	int handleRequest(struct request_struct* r, string req);
 
 	int sock;
 	string webroot;
@@ -205,7 +204,7 @@ void SingleConnServerHTML::sendStatus(int statusCode) {
 }
 
 /*
- * Read in an html file.
+ * Read in an html file from disk.
  */
 string SingleConnServerHTML::readHTMLFromFile(string fname) {
 	string HTML = "";
@@ -263,10 +262,30 @@ void SingleConnServerHTML::handleGET() {
 	}
 }
 
-void SingleConnServerHTML::handlePOST() {
-	//YOU WERE HERE
-	//parse login data e.g. user=michal&pass=porubcin
-	//for login POST, check against hardcoded user/pass
+/*
+ * Handle POST request
+ */
+void SingleConnServerHTML::handlePOST(char *body) {
+	char buff[BUFF_SIZE];
+	if (requestURI.compare("handle_login") == 0) {
+		//parse login data e.g. user=michal&pass=porubcin
+		char *delim = "&\n";
+		char *user_str = strtok(buff, delim);
+		char *pass_str = strtok(NULL, delim);
+		string user = user_str + strlen("user=");
+		string pass = pass_str + strlen("pass=");
+
+		//hardcoded user/pass:
+		if (user.compare("michal") != 0 || pass.compare("porubcin") != 0) {
+			//redirect to login page
+			//TODO: add message stating invalid credentials
+			sendStatus(200);
+			string HTML = readHTMLFromFile("login.html");
+			sendMsg(HTML);
+			return;
+		}
+		loggedIn = true;
+	}
 }
 
 void SingleConnServerHTML::mainloop() {
@@ -339,8 +358,8 @@ void SingleConnServerHTML::mainloop() {
 		else if (req.compare("POST") == 0) {
 			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL))
 				sendStatus(400);
-			string body = requestLine;
-			handlePOST(body);
+//			string body = requestLine;
+			handlePOST(requestLine);
 		}
 		else {
 			sendStatus(501);
