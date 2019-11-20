@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>			//close()
+#include <fcntl.h>			//fcntl()
 #include <arpa/inet.h>		//htons()
 #include <poll.h>
 #include <unistd.h>			//getopt()
@@ -46,9 +47,17 @@ struct request_struct {
 };
 
 /*
+ * Handler for SIGINT
+ */
+static void sigintHandler(int signum)
+{
+	shutdownFlag = true;
+}
+
+/*
  * Function for exiting cleanly
  */
-void die(const char *msg, int sock, bool isThread){
+void die(const char *msg, int sock, bool isThread=true){
 	if (sock > 0)
 		close(sock);
 	fprintf(stderr, "%s", msg);
@@ -114,14 +123,15 @@ int createServerSocket(unsigned short port){
 
 class SingleConnServerHTML {
 public:
-	SingleConnServerHTML();
+	SingleConnServerHTML(int sock, string webroot);
 	~SingleConnServerHTML();
 	void mainloop();
 private:
-	int sendMsg(int sock, string msg);
+	string readHTMLFromFile(string fname);
+	int sendMsg(string msg);
 	void sendStatus(int statusCode);
-	int handleGET(struct request_struct* r);
-	int handlePOST(struct request_struct* r);
+	void handleGET();
+	void handlePOST(char *body);
 
 	int sock;
 	string webroot;
@@ -134,7 +144,7 @@ private:
 SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
-	loggedIn = False;
+	loggedIn = false;
 	commands = {
 		"GET",
 		"POST"
@@ -167,7 +177,7 @@ SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	};
 }
 
-SingleConnServerHTML()::~SingleConnServerHTML() {
+SingleConnServerHTML::~SingleConnServerHTML() {
 
 }
 
@@ -178,9 +188,9 @@ int SingleConnServerHTML::sendMsg(string msg) {
 	char *m = (char *)msg.c_str();
 	int i = write(sock, m, strlen(m));
 	if (shutdownFlag || i < 0)
-		die("Shutdown flag", sock, true);
+		die("Shutdown flag", sock);
 	if (VERBOSE)
-		fprintf(stderr, "[%d] S: %s", sock, m);
+		fprintf(stderr, "[%d] S: %s\n", sock, m);
 	return 1;
 }
 
@@ -188,15 +198,15 @@ void SingleConnServerHTML::sendStatus(int statusCode) {
 	//get corresponding reason in words
 	string reason = status2reason[statusCode];
 	//status line
-	string statusLine = "HTTP/1.0" + toString(statusCode) + reason + "\r\n";
+	string statusLine = "HTTP/1.0 " + to_string(statusCode) + " " + reason + "\r\n";
 	//no headers
 	statusLine += "\r\n";
 	//format in HTML if not 200
 	if (statusCode != 200) {
 		string body =
-				"<html><body><h1>" +
-				statusCode + " " + reason +
-				"</h1></body></html>";
+				"<html><body><h1> " +
+				to_string(statusCode) + " " + reason +
+				" </h1></body></html>";
 		statusLine += body;
 	}
 
@@ -225,6 +235,8 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
  * Handle GET request
  */
 void SingleConnServerHTML::handleGET() {
+	if (VERBOSE)
+		fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
 	if (!loggedIn) {
 		sendStatus(200);
 		//read from templates/login.html
@@ -239,14 +251,14 @@ void SingleConnServerHTML::handleGET() {
 		if (requestURI.compare("") == 0)
 			requestURI = "/";
 		//read from templates/index.html
-		string HTML = readHTMLFromFile("index.html");
+		string HTML = readHTMLFromFile("templates/index.html");
 		//serve landing page
 		sendMsg(HTML);
 	}
 	else if (requestURI.compare("mail.html") == 0) {
 		sendStatus(200);
 		//read from templates/mail.html
-		string HTML = readHTMLFromFile("mail.html");
+		string HTML = readHTMLFromFile("templates/mail.html");
 		//serve mail page
 		sendMsg(HTML);
 	}
@@ -266,6 +278,8 @@ void SingleConnServerHTML::handleGET() {
  * Handle POST request
  */
 void SingleConnServerHTML::handlePOST(char *body) {
+	if (VERBOSE)
+		fprintf(stderr, "[%d] C: POST %s\n", sock, requestURI.c_str());
 	char buff[BUFF_SIZE];
 	if (requestURI.compare("handle_login") == 0) {
 		//parse login data e.g. user=michal&pass=porubcin
@@ -291,11 +305,19 @@ void SingleConnServerHTML::handlePOST(char *body) {
 void SingleConnServerHTML::mainloop() {
 	FILE *clntFp = fdopen(sock, "r");
 	if (clntFp == NULL)
-		die("fdopen error", sock, true);
+		die("fdopen error", sock);
 
-	sendMsg("+OK server ready [localhost]\r\n");
+	//send login to start
+	sendStatus(200);
+	string HTML = readHTMLFromFile("templates/login.html");
+	sendMsg(HTML);
+
+	if (VERBOSE)
+		fprintf(stderr, "[%d] S: +OK server ready [localhost]\r\n", sock);
 	char requestLine[BUFF_SIZE];
 	while (true) {
+		if (VERBOSE)
+			fprintf(stderr, "[%d] S: Waiting...\r\n", sock);
 		memset(requestLine, 0, sizeof(requestLine));
 
 		struct pollfd fds[1];
@@ -304,20 +326,22 @@ void SingleConnServerHTML::mainloop() {
 		int ret = poll(fds, 1, 500);
 		//poll error
 		if (ret == -1)
-			die("poll error", clntSock, true);
+			die("poll error", sock);
 		//retry on timeout and empty buffer (no prev. commands)
 		if (!ret)
 			continue;
 		//clntSock is readable
 		if (fds[0].revents & POLLIN)
-			i = read(clntSock, requestLine, sizeof(requestLine)-1);
+			read(sock, requestLine, sizeof(requestLine)-1);
 
 		if (shutdownFlag)
-			die("shutdown", clntSock, true);
+			die("shutdown", sock);
 
-		if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL)) {
+		if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
 			sendStatus(400);
-		}
+
+		if (VERBOSE)
+			fprintf(stderr, "[%d] dee S: %s", sock, requestLine);
 
 		char *delim = " ";
 		char *c_req = strtok(requestLine, delim);
@@ -325,9 +349,7 @@ void SingleConnServerHTML::mainloop() {
 		char *httpVersion = strtok(NULL, delim);
 		char *extraGarbage = strtok(NULL, delim);
 
-		requestURI = reqURI;
 		string req = c_req;
-
 		//check valid request
 		if (commands.find(req) == commands.end()){
 			sendStatus(500);
@@ -335,28 +357,37 @@ void SingleConnServerHTML::mainloop() {
 		}
 
 		//check first character in URI is "/"
-		if (requestURI[0] != "/") {
+		if (reqURI[0] != '/') {
+			if (VERBOSE)
+				fprintf(stderr, "[%d] S: (no preceding slash)\n", sock);
 			sendStatus(400);
 			continue;
 		}
+		requestURI = reqURI;
+
+		if (VERBOSE)
+			fprintf(stderr, "[%s, %s, %s] checkpoint 1", c_req, reqURI, httpVersion);
 
 		//skip remaining headers
 		while (true) {
-			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL))
+			if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
 				sendStatus(400);
-			if (strcmp(line, "\r\n") == 0)
+			if (strcmp(requestLine, "\r\n") == 0)
 				break;
 		}
 		memset(requestLine, 0, sizeof(requestLine));
 
 		if (VERBOSE)
-			fprintf(stderr, "[%d] C: %s %s\n", clntSock, (char *)req.c_str());
+			fprintf(stderr, "[] checkpoint 2");
+
+//		if (VERBOSE)
+//			fprintf(stderr, "[%d] C: %s\n", sock, (char *)req.c_str());
 
 		if (req.compare("GET") == 0) {
 			handleGET();
 		}
 		else if (req.compare("POST") == 0) {
-			if (fgets(requestLine, sizeof(requestLine, clntFp) == NULL))
+			if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
 				sendStatus(400);
 //			string body = requestLine;
 			handlePOST(requestLine);
@@ -386,7 +417,7 @@ int main(int argc, char *argv[])
 {
 	int c;
 	int N = 0;
-	int port = 11000;
+	int port = 8000;
 	string webroot;
 	string buff;
 
@@ -415,6 +446,9 @@ int main(int argc, char *argv[])
 	if (optind >= argc)
 		die("*** Author: Michal Porubcin (michal19)\n", -1, false);
 	webroot = argv[optind];
+
+	if (VERBOSE)
+		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webroot.c_str(), port);
 
 	//Start serving
 	int servSock = createServerSocket(port);
