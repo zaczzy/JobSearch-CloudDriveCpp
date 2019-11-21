@@ -12,11 +12,11 @@ extern int is_shutdown_server;
 
 /* Thread function to handle communication 
    with client. */
-void *client_handler(void *args) {
+void client_handler(void *args) {
 
   int client_fd = *(int *)args;
   // Linear buffer which can be expanded into circular buffer later 
-  char *circ_buf = malloc(sizeof(char) * BUFLENGTH);
+  char *circ_buf = (char *)malloc(sizeof(char) * BUFLENGTH);
   if(circ_buf == NULL) {
     printf("Buffer for child is NULL\n");
     return;
@@ -80,6 +80,7 @@ void *client_handler(void *args) {
         }
         temp_ptr++;
       }
+      sprintf(send_msg, "-ERR Unknown command\r\n");
         
   }
 
@@ -87,5 +88,5 @@ void *client_handler(void *args) {
   if(is_verbose)
     printf("[%d] Connection closed\n", client_fd);
   free(circ_buf);
-  return; 
+  return ; 
 }

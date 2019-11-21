@@ -1,44 +1,45 @@
 TARGETS = echoserver mailclient
 OBJS_POP3 = pop3_thread.o pop3.o
 OBJS_SMTP = smtp_thread.o smtp.o
+CC=g++
 
 all: $(TARGETS)
 
 echoserver: echothread.o echoserver.o
-	gcc $^ -lpthread -o $@
+	$(CC) $^ -lpthread -o $@
 
 echoserver.o: echoserver.c 
-	gcc -c $^ -g -lpthread -o $@
+	$(CC) -c $^ -g -lpthread -o $@
 
 echothread.o: echothread.c 
-	gcc -c $^ -g -o $@
+	$(CC) -c $^ -g -o $@
 
 mailclient: mailclient.o mailservice.o
-	gcc $^ -o $@
+	$(CC) $^ -o $@
 
 mailclient.o: mailclient.c
-	gcc -c $^ -g -o $@
+	$(CC) -c $^ -g -o $@
 
 mailservice.o: mailservice.c
-	gcc -c $^ -g -o $@
+	$(CC) -c $^ -g -o $@
 
 smtp: $(OBJS_SMTP)
-	g++ $^ -lpthread -g -o $@
+	$(CC) $^ -lpthread -g -o $@
  
 smtp.o: smtp.c 
-	gcc -c $^ -g -lpthread -o $@
+	$(CC) -c $^ -g -lpthread -o $@
 
 smtp_thread.o: smtp_thread.c 
-	gcc -c $^ -g -o $@
+	$(CC) -c $^ -g -o $@
 
 pop3: $(OBJS_POP3)
-	g++ $^ -lpthread -g -o $@
+	$(CC) $^ -lpthread -g -o $@
 
 pop3.o: pop3.c 
-	gcc -c $^ -g -lpthread -o $@
+	$(CC) -c $^ -g -lpthread -o $@
 
 pop3_thread.o: pop3_thread.c 
-	gcc -c $^ -g -o $@
+	$(CC) -c $^ -g -o $@
 
 pack:
 	rm -f submit-hw2.zip

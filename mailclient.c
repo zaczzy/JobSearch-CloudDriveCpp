@@ -27,7 +27,8 @@ int log_to_terminal = 0;
 FILE *log_file = NULL;
 char *user = "JOHN";
 char email_msg[1000];
-char *rcpt_to;
+char rcpt_to[100];
+int msg_len = 0;
 void server_close(int server_fd);
 
 //Signal SIGINT callback
@@ -79,8 +80,9 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
         printf("%02x ", (unsigned char)lineptr[i]);
       printf("\n");
 #endif
-      
-      char *parse_cmd = lineptr;
+       
+      char *parse_cmd = (char *)malloc(LINE_BUF_SIZE);
+      memcpy(parse_cmd, lineptr, received);
 
       char *cmd0 = strtok(parse_cmd,":\x0A");
   
@@ -124,11 +126,6 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               //Delete email for user with email id email_id
   
         } else if(!strcasecmp(cmd0, "SEND")) {
-             char *cmd1 = strtok(NULL, "\x0A");
-              if(cmd1 == NULL) {
-                  printf("Invalid command\n");
-                return;
-               }
               state = 1;
               printf("Send mail\n");
               return;
@@ -146,7 +143,9 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
 
         if(!strcasecmp(cmd0, "rcpt_to")) {
             //Validate user
-            rcpt_to = strtok(NULL, "\x0A");
+            char *tmp = strtok(NULL, "\x0A");
+            memcpy(rcpt_to, tmp, strlen(tmp));
+            printf("%s\n", rcpt_to);
             state = 2;
 
         } else if(!strcasecmp(cmd0, "quit")) {
@@ -173,12 +172,15 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
       
       } else if(state == 3) { 
           if(!strcasecmp(cmd0, "." )) {
+            email_msg[msg_len] = '\0';
             webserver_core(2, user, -1, email_msg, rcpt_to, NULL, server_fd);  
             memset(email_msg, 0, sizeof(email_msg));
+            msg_len = 0;
             state = 1;
           }
            
-          strcpy(email_msg, lineptr);
+          strcpy(email_msg + msg_len, cmd0);
+          msg_len += strlen(lineptr);
   
       }
 

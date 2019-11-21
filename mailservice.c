@@ -30,6 +30,7 @@ struct email_data {
 int validateUser(char *user);
 int validateMailId(char *user, uint16_t mailId);
 int downloadEmail(char *user, uint16_t mailId, char *msg);
+int send_email(char * user, char *rcpt_user, char *mail_msg, int server_fd);
 
 int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd) {
   int valid = FAILURE;    //Defensive programming
@@ -47,10 +48,10 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
     return FAILURE;
   }
 
-  mOpt = mailOpt;
+  mOpt = (enum mail_opt)mailOpt;
 
   switch(mOpt) {
-    case SHOW_MAIL:                 //Downloads email headers from backend
+    case SHOW_MAIL:  {               //Downloads email headers from backend
       printf("SHOW_MAIL in core\n");
       printf("User: %s\n\n", user);
       char subject[20] = "My struggles";
@@ -58,7 +59,6 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tUser inbox\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<ol>\n\t\t<li>\n\t\t\tInbox:\n\t\t\t<ul>\n\t\t\t\t<li><pre> <b>Charles Aranguiz</b>     My travels     Monday 14th Sept, 23:44 <button> Read me </button> </pre> </li>\n\t\t\t\t<li><pre> <b>%s</b>   %s   %s  <button> Read me> </button> </pre> </li>\n\t\t\t\t<li>grandpa</li>\n\t\t\t</ul>\n\t\t\t</li>\n\t\t</ol>\n\t\n\n</body>\n\n</html>\r\n", user, subject, date);
       strcpy(html_response, send_msg);
       //send(server_fd, send_msg, strlen(send_msg), 0);
-      return 0;
       /*numlist = retrieveIDList(user, email_id);
 
       for(i in numlist) {
@@ -68,8 +68,8 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       }
 
       return email_data;
-*/
-    case READ_MAIL:
+*/  }break;
+    case READ_MAIL: {
 
       printf("READ_MAIL in core\n");
       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tEMAIL\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<h1>\n\t\t\tInbox:\n\t\t\t</h1>\n\t\t\t\t<p>TEXT OF EMAIL</p>\n\t\n\n</body>\n\n</html>\r\n");
@@ -84,26 +84,26 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       }
       //Pack the output into a string and return. 
     
-      break;
-    case SEND_MAIL:
+     }break;
+    case SEND_MAIL: {
   
       printf("SEND_MAIL in core\n");
       printf("User: %s\n Recipient: %s\n", user, rcpt_user);
-      return 0 ;
-      valid = validateUser(rcpt_user);
+      /*valid = validateUser(rcpt_user);
       if(valid < 0) {
         printf("No such user exists!!\n");
         break;
       }
-
-      sprintf(send_msg, "put <%s> <%s> <%s>", rcpt_user, mail_msg);
+*/
+      printf("put <%s> <%s>", rcpt_user, mail_msg);
+      valid = send_email(user, rcpt_user, mail_msg, server_fd);
       //send(send_msg);
 
-      break;
-    case DELETE_MAIL:
+      } break;
+    case DELETE_MAIL: {
    
       printf("DELETE_MAIL in core\n");
-      printf("User: %s\n email_id: %s\n");
+      printf("User: %s\n email_id: %d\n", user, email_id);
       return 0;
         //TODO: Request to backend to delete
          valid = validateMailId(user, email_id);
@@ -114,15 +114,42 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
             printf("No such mail ID"); 
           }
           //TODO: Return success or failure
-      break;
-    default: 
+     } break;
+    default: {
             printf("Wrong option\n");
             return FAILURE;
-  
+    }break;
   }//switch between email options
 
 }
 
+
+int send_email(char * user, char *rcpt_user, char *mail_msg, int server_fd) {
+
+  char recv_msg[1000];
+  char date[64];
+
+  
+  email_header header;
+  put_mail_request request;
+ 
+  strcpy(header.from, user);
+  strcpy(header.to, rcpt_user);
+  strcpy(header.subject, "Subject1");
+  strcpy(header.date, "Sept 23rd, 11:00AM");
+  strcpy(request.prefix, "putmail");
+  strcpy(request.username, user);
+  strcpy(request.email_id, "0");
+  memcpy(&(request.header), &header, sizeof(email_header));
+  request.email_len = strlen(mail_msg);
+  strcpy(request.email_body, mail_msg);
+  
+  send(server_fd, &request, sizeof(put_mail_request), 0);
+  recv(server_fd, recv_msg, sizeof(recv_msg), 0);
+
+  printf("recv_msg: %s\n", recv_msg);
+  return SUCCESS;
+}
 
 int validateUser(char *user) {
 
