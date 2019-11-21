@@ -15,24 +15,41 @@ typedef enum
 {
    DRIVE,
    MAIL
-}request_type;
+}column_type;
 
-typedef union
-{
-   mail_request mail_r;
-   drive_request drive_r;
-}request_content;
+class hash_fn{
+public:
 
-/** TODO: For later use */
-//typedef struct
-//{
-//    request_type r_type;
-//    request_content content;
-//}tablet_column;
+    std::string operator()(const email_header& header) const
+    {
+        return std::string(header.date) + std::string(header.subject);
+    }
+};
 
 typedef struct
 {
-    char* value;
+    uint64_t num_emails;
+    std::vector<email_header> header_list;
+    std::vector<char*> body_list;
+}mail_content;
+
+// TODO: For later use
+//typedef struct
+//{
+//    uint64_t num_emails;
+//    std::unordered_map<email_header, char*, hash_fn> email_list;
+//}mail_content;
+
+typedef struct
+{
+    uint64_t file_len;
+    char* file_data;
+}file_content;
+
+typedef struct
+{
+    column_type type;
+    void* content;
 }tablet_column;
 
 typedef std::unordered_map<std::string, tablet_column> map_tablet_row;
@@ -49,186 +66,6 @@ extern bool verbose;
 
 /** Map to store key value pairs */
 map_tablet tablet; 
-
-bool put(char* row, char* column, char* data)
-{
-    // TODO: Remove
-    printf("row: %s column: %s column len: %d\n", row, column, strlen(column));
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** If this column doesn't already exist */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
-    {
-        if (verbose)
-            printf("col doesn't already exist\n");
-
-        /** Add the new column to this row */
-        // TODO: Allocate dynamic memory to data when put() function is called
-        tablet_column col;
-        col.value = data;
-        itr->second.columns.insert(std::make_pair(std::string(column), col));
-
-        if (verbose)
-            printf("Added column %s to row %s\n", column, row);
-    }
-    /** Column already exists */
-    else
-    {
-        if (verbose)
-            printf("col already exists, just update valu, old value : %s\n", row_itr->second.value);
-
-       row_itr->second.value = data; 
-    }
-
-    return SUCCESS;
-}
-
-int get(char* row, char* column, char** data)
-{
-    printf("row: %s column: %s column len: %d\n", row, column, strlen(column));
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    printf("inter: row: %s column: %s\n", row, column);
-    
-    /** If this column doesn't already exist */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
-    {
-        if (verbose)
-            printf("given column doesn't exist in row %s\n", row);
-
-        return -1;
-    }
-    
-    /** Get and return the value in column */
-    // TODO : Remove
-    *data = row_itr->second.value;
-    return strlen(row_itr->second.value); 
-#if 0
-    // TODO: Remove
-    printf("row: %s column: %s\n", row, column);
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row %s exists\n", row);
-
-        return -1;
-    }
-
-    /** Check if the column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
-    {
-        if (verbose)
-            printf("given column doesn't exist in row %s\n", row);
-
-        return -1;
-    }
-
-    /** Get and return the value in column */
-    data = row_itr->second.value;
-    return strlen(row_itr->second.value); 
-#endif
-}
-
-bool cput(char* row, char* column, char* old_data, char* data)
-{
-    // TODO: Remove
-    printf("row: %s column: %s\n", row, column);
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** Check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
-    {
-        if (verbose)
-            printf("Column %s in row %s doesn't exist\n", column, row);
-
-        return FAILURE;
-    }
-    
-    /** Column already exists */
-    /** Check if its current value matches the given old_value */
-    if (strcmp(row_itr->second.value, old_data) != 0)
-    {
-        if (verbose)
-            printf("column value doesnt match the given value\n");
-
-        return FAILURE;
-    }
-    
-    /** Update the value in this column */
-    row_itr->second.value = data;
-
-    return SUCCESS;
-}
-
-bool delete_entry(char* row, char* column)
-{
-    // TODO: Remove
-    printf("row: %s column: %s\n", row, column);
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** Check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
-    {
-        if (verbose)
-            printf("Column %s in row %s doesn't exist\n", column, row);
-
-        return FAILURE;
-    }
-
-    /** Delete the column */
-    itr->second.columns.erase(row_itr);
-
-    return SUCCESS;
-}
 
 bool add_user(char* username, char* password)
 {
@@ -271,17 +108,218 @@ bool delete_user(char* username, char* password)
     return SUCCESS;
 }
 
+bool store_email(put_mail_request* request)
+{
+    char* row = request->username;
+    char* column = request->email_id;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** Check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        /** Add the new email */
+        mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
+        // TODO: Check NULL
+        content->num_emails = 1;
+
+        char* mail_body = (char*)malloc(request->email_len * sizeof(char));
+        // TODO: Check NULL
+        strncpy(mail_body, request->email_body, request->email_len);
+
+        content->header_list.push_back(request->header);
+        content->body_list.push_back(mail_body);
+       
+        tablet_column* col = &(row_itr->second);
+        col->content = content;
+    }
+    else /** Create a column with the given email ID */
+    {
+        /** Add the new column to this row */
+        tablet_column col;
+        col.type = MAIL;
+
+        mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
+        // TODO: Check NULL
+        content->num_emails = 1;
+
+        char* mail_body = (char*)malloc(request->email_len * sizeof(char));
+        // TODO: Check NULL
+        strncpy(mail_body, request->email_body, request->email_len);
+
+        content->header_list.push_back(request->header);
+        content->body_list.push_back(mail_body);
+       
+        col.content = content; 
+        /** Add the entry to the map */
+        itr->second.columns.insert(std::make_pair(std::string(column), col));
+
+        if (verbose)
+            printf("Added column %s to row %s\n", column, row);
+    }
+
+    return SUCCESS;
+}
+
+bool get_email_list(get_mail_request* request, get_mail_response* response)
+{
+    char* row = request->username;
+    char* column = request->email_id;
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        tablet_column* col = &(row_itr->second);
+        mail_content* content = (mail_content*)col;
+        
+        response->num_emails = content->header_list.size();
+        strncpy(response->prefix, request->prefix, strlen(request->prefix));
+        strncpy(response->username, request->username, strlen(request->username));
+        strncpy(response->email_id, request->email_id, strlen(request->email_id));
+        for (unsigned int i = 0; i < content->header_list.size(); i++)
+        {
+            response->email_headers[i] = content->header_list[i];
+        }
+    }
+    else /** column doesn't exist */
+    {
+        if (verbose)
+            printf("no column with %s exists\n", column);
+        return FAILURE;
+    }
+    
+   return SUCCESS; 
+}
+
+bool get_file_data(get_file_request* request, get_file_response* response)
+{
+    char* row = request->username;
+    char* column = request->filename;
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        tablet_column* col = &(row_itr->second);
+        file_content* content = (file_content*)col;
+        
+        response->file_len = content->file_len;
+        strncpy(response->prefix, request->prefix, strlen(request->prefix));
+        strncpy(response->username, request->username, strlen(request->username));
+        strncpy(response->filename, request->filename, strlen(request->filename));
+
+        strncpy(response->file_content, content->file_data, content->file_len);
+    }
+    else /** column doesn't exist */
+    {
+        if (verbose)
+            printf("no column with %s exists\n", column);
+        return FAILURE;
+    }
+    
+   return SUCCESS; 
+}
+
+bool store_file(put_file_request* request)
+{
+    char* row = request->username;
+    char* column = request->filename;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** Check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        // TODO: Allow to change existing file later
+        if (verbose)
+            printf("A column with this filename already exists\n");
+        return FAILURE;
+    }
+    else /** Create a column with the given email ID */
+    {
+        /** Add the new column to this row */
+        tablet_column col;
+        col.type = MAIL;
+
+        /** Add the new file */
+        file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
+        // TODO: Check NULL
+
+        char* data = (char*)malloc(request->file_len * sizeof(char));
+        // TODO: Check NULL
+        strncpy(data, request->file_content, request->file_len);
+
+        content->file_len = request->file_len;
+        content->file_data = data;
+
+        col.content = content; 
+        /** Add the entry to the map */
+        itr->second.columns.insert(std::make_pair(std::string(column), col));
+
+        if (verbose)
+            printf("Added column %s to row %s\n", column, row);
+    }
+
+    return SUCCESS;
+}
+
 bool process_command(char* buffer, int len, int fd)
 {
     char message[64];
 
-    // TODO: remove
-    printf("command: %send len: %d\n", buffer, len);
+    printf("command: %s len: %d\n", buffer, len);
 
     char* command = strtok(buffer, " ");
 
     if (command == NULL)
+    {
+        if (verbose)
+            printf("command is NULL\n");
         return SUCCESS;
+    }
 
     /** add user command */
     if (strcmp(command, "add") == 0 || strcmp(command, "ADD") == 0)
@@ -323,28 +361,18 @@ bool process_command(char* buffer, int len, int fd)
 
         return SUCCESS;
     }
-    /** put command */
-    else if (strcmp(command, "put") == 0 || strcmp(command, "PUT") == 0)
+    /** put email command */
+    else if (strncmp(command, "putmail", 7) == 0 || strncmp(command, "PUTMAIL", 7) == 0)
     {
-        char* row = strtok(NULL, " ");
-        char* col = strtok(NULL, " ");
-        char* value = strtok(NULL, " ");
+        put_mail_request* mail_request = (put_mail_request*)command;
 
-        // TODO: value NULL check
-
-        char* data = (char*)malloc(strlen(value));
-
-        // TODO: Malloc error check
-
-        strncpy(data, value, strlen(value));
-        
-        /** Put the new entry */
-        bool res = put(row, col, data);
+        /** Store the new mail */
+        bool res = store_email(mail_request);
 
         if (res == SUCCESS)
-            strncpy(message, "+OK value put", strlen("+OK value put"));
+            strncpy(message, "+OK email stored", strlen("+OK email stored"));
         else
-            strncpy(message, "-ERR can't put value", strlen("-ERR can't put value"));
+            strncpy(message, "-ERR can't store email", strlen("-ERR can't store email"));
 
         message[strlen(message)] = '\0';
 
@@ -352,49 +380,40 @@ bool process_command(char* buffer, int len, int fd)
             
         return SUCCESS;
     }
-    /** get command */
-    else if (strcmp(command, "get") == 0 || strcmp(command, "GET") == 0)
+    /** get email list command */
+    else if (strncmp(command, "getmail", 7) == 0 || strncmp(command, "GETMAIL", 7) == 0)
     {
-        char* row = strtok(NULL, " ");
-        char* col = strtok(NULL, " ");
-        char* value = NULL;
+        get_mail_request* mail_request = (get_mail_request*)command;
+        get_mail_response response;
 
-        /** Get the entry */
-        int len = get(row, col, &value);
-
-        printf("data: %s len: %d\n", value, strlen(value));
-        
-        // TODO: CHeck for NULL value
-
-        message[strlen(message)] = '\0';
-
-        send_msg_to_socket(value, len, fd);
-            
-        return SUCCESS;
-    }
-    /** cput command */
-    else if (strcmp(command, "cput") == 0 || strcmp(command, "CPUT") == 0)
-    {
-        char* row = strtok(NULL, " ");
-        char* col = strtok(NULL, " ");
-        char* old_value = strtok(NULL, " ");
-        char* value = strtok(NULL, " ");
-
-        // TODO: value, old_value NULL check
-
-        char* data = (char*)malloc(strlen(value));
-
-        // TODO: Malloc error check
-
-        strncpy(data, value, strlen(value));
-        
-        /** Put the new entry */
-        bool res = cput(row, col, old_value, data);
+        /** Get mails */
+        bool res = get_email_list(mail_request, &response);
 
         if (res == SUCCESS)
-            strncpy(message, "+OK value put", strlen("+OK value put"));
+        {
+            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+        }
         else
-            strncpy(message, "-ERR can't put value", strlen("-ERR can't put value"));
+        {
+            strncpy(message, "-ERR can't get email", strlen("-ERR can't get email"));
+            message[strlen(message)] = '\0';
+            send_msg_to_socket(message, strlen(message), fd);
+        }
+
+        return SUCCESS;
+    }
+    /** put file command */
+    else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
+    {
+        put_file_request* file_request = (put_file_request*)command;
+
+        /** Store the new file */
+        bool res = store_file(file_request);
+        
+        if (res == SUCCESS)
+            strncpy(message, "+OK file stored", strlen("+OK file stored"));
+        else
+            strncpy(message, "-ERR can't store file", strlen("-ERR can't store file"));
 
         message[strlen(message)] = '\0';
 
@@ -402,26 +421,29 @@ bool process_command(char* buffer, int len, int fd)
             
         return SUCCESS;
     }
-    /** delete command */
-    else if (strcmp(command, "del") == 0 || strcmp(command, "DEL") == 0)
+    /** get file command */
+    else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
     {
-        char* row = strtok(NULL, " ");
-        char* col = strtok(NULL, " ");
+        get_file_request* file_request = (get_file_request*)command;
+        get_file_response response;
 
-        /** Delete this column */
-        bool res = delete_entry(row, col);
+        /** Get file data */
+        bool res = get_file_data(file_request, &response);
 
         if (res == SUCCESS)
-            strncpy(message, "+OK value deleted", strlen("+OK value deleted"));
+        {
+            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+        }
         else
-            strncpy(message, "-ERR can't delete value", strlen("-ERR can't delete value"));
+        {
+            strncpy(message, "-ERR can't get file", strlen("-ERR can't get file"));
+            message[strlen(message)] = '\0';
+            send_msg_to_socket(message, strlen(message), fd);
+        }
 
-        message[strlen(message)] = '\0';
-
-        send_msg_to_socket(message, strlen(message), fd);
-        
         return SUCCESS;
     }
+    
     else
     {
         strncpy(message, "-ERR unknown command", strlen("-ERR unknown command"));
@@ -435,5 +457,4 @@ bool process_command(char* buffer, int len, int fd)
 
    return FAILURE;
 }
-
 
