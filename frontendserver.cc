@@ -26,6 +26,7 @@ int BUFF_SIZE = 2048;
 int MAX_CLNT = 100;
 bool VERBOSE = false;
 bool shutdownFlag = false;
+bool loggedIn = false;
 map<string, pthread_mutex_t> locks;
 set<pthread_t> threads;
 
@@ -121,6 +122,9 @@ int createServerSocket(unsigned short port){
 	return servSock;
 }
 
+/*
+ * Handles HTML service with one client.
+ */
 class SingleConnServerHTML {
 public:
 	SingleConnServerHTML(int sock, string webroot);
@@ -136,15 +140,19 @@ private:
 	int sock;
 	string webroot;
 	string requestURI;
-	bool loggedIn;
+//	bool loggedIn;
+	string redirectTo; //the page a user attempts to visit before redirected to login
 	set<string> commands;
 	map<int, string> status2reason;
 };
 
+/*
+ * Constructor
+ */
 SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
-	loggedIn = false;
+//	loggedIn = false;
 	commands = {
 		"GET",
 		"POST"
@@ -194,6 +202,10 @@ int SingleConnServerHTML::sendMsg(string msg) {
 	return 1;
 }
 
+/*
+ * Sends a status code with the description.
+ * Non-200 codes are wrapped in HTML to display.
+ */
 void SingleConnServerHTML::sendStatus(int statusCode) {
 	//get corresponding reason in words
 	string reason = status2reason[statusCode];
@@ -237,40 +249,35 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
  * Handle GET request
  */
 void SingleConnServerHTML::handleGET() {
-	if (VERBOSE)
-		fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
 	if (!loggedIn) {
+		redirectTo = requestURI;
 		sendStatus(200);
 		string HTML = readHTMLFromFile("templates/login.html");
 		sendMsg(HTML);
 		return;
 	}
 
-	if (requestURI.compare("index.html") == 0 || requestURI.compare("") == 0) {
+	if (requestURI.compare("/index.html") == 0 || requestURI.compare("/") == 0) {
+		//send OK status
 		sendStatus(200);
-		if (requestURI.compare("") == 0)
-			requestURI = "/";
 		//read from templates/index.html
 		string HTML = readHTMLFromFile("templates/index.html");
 		//serve landing page
 		sendMsg(HTML);
 	}
-	else if (requestURI.compare("mail.html") == 0) {
+	else if (requestURI.compare("/mail.html") == 0) {
 		sendStatus(200);
-		//read from templates/mail.html
 		string HTML = readHTMLFromFile("templates/mail.html");
-		//serve mail page
 		sendMsg(HTML);
 	}
-//	else if (requestURI.compare("storage.html") == 0) {
-//		sendStatus(200);
-//		//read from templates/storage.html
-//		string HTML = readHTMLFromFile("storage.html");
-//		//serve storage page
-//		sendMsg(HTML);
-//	}
+	else if (requestURI.compare("/storage.html") == 0) {
+		sendStatus(200);
+		string HTML = readHTMLFromFile("templates/storage.html");
+		sendMsg(HTML);
+	}
 	else {
-		sendStatus(400);
+		//Resource not found
+		sendStatus(404);
 	}
 }
 
@@ -278,61 +285,68 @@ void SingleConnServerHTML::handleGET() {
  * Handle POST request
  */
 void SingleConnServerHTML::handlePOST(char *body) {
-	if (VERBOSE)
-		fprintf(stderr, "[%d] C: POST %s\n", sock, requestURI.c_str());
 	char buff[BUFF_SIZE];
-	if (requestURI.compare("handle_login") == 0) {
-		//parse login data e.g. user=michal&pass=porubcin
+	if (requestURI.compare("/handle_login") == 0) {
+		//parse login data e.g. user=michal&pass=p
 		char *delim = "&\n";
-		char *user_str = strtok(buff, delim);
+		char *user_str = strtok(body, delim);
 		char *pass_str = strtok(NULL, delim);
 		string user = user_str + strlen("user=");
 		string pass = pass_str + strlen("pass=");
 
 		//hardcoded user/pass:
-		if (user.compare("michal") != 0 || pass.compare("porubcin") != 0) {
+		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
 			//redirect to login page
 			//TODO: add message stating invalid credentials
 			sendStatus(200);
-			string HTML = readHTMLFromFile("login.html");
+			string HTML = readHTMLFromFile("templates/login.html");
 			sendMsg(HTML);
 			return;
 		}
+
 		loggedIn = true;
+		requestURI = redirectTo;
+		redirectTo = "";
+		handleGET();
 	}
 }
 
 /*
- * SWITCH OUT BUFFERED READS
+ * Main
  */
 void SingleConnServerHTML::backbone() {
-	FILE *clntFp = fdopen(dup(sock), "r+b");
-	if (clntFp == NULL)
-		die("fdopen error", sock);
+	//Can't use fgets because POST body is binary data
+	//Can't use fread because it blocks (size of POST body variable)
+	//Can't use fgets for GET and read for POST because buffered read interferes with standalone read
+	//And I don't want to use nonblocking sockets
+	//Can't use strtok because of multichar delimiters \r\n and \r\n\r\n
 
 	if (VERBOSE)
 		fprintf(stderr, "[%d] S: +OK server ready [localhost]\r\n", sock);
-	char requestLine[BUFF_SIZE];
+	char c_requestLine[BUFF_SIZE];
 
-	memset(requestLine, 0, sizeof(requestLine));
+	memset(c_requestLine, 0, sizeof(c_requestLine));
 
 	if (shutdownFlag)
 		die("shutdown", sock);
 
-	if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
+	if (read(sock, c_requestLine, sizeof(c_requestLine)) < -1)
 		sendStatus(400);
 
-	if (VERBOSE)
-		fprintf(stderr, "[%d] dee S: %s\n", sock, requestLine);
+	//from strtok single character delimiter, modify in-place, char * hell to string paradise
+	string requestLine = c_requestLine;
+	int i_endline = requestLine.find("\r\n");
+	string firstLine = requestLine.substr(0, i_endline);
+	string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
 
-	char *delim = " ";
-	char *c_req = strtok(requestLine, delim);
-	char *reqURI = strtok(NULL, delim);
-	char *httpVersion = strtok(NULL, delim);
-	char *extraGarbage = strtok(NULL, delim);
+	//I exaggerated strtok can be better for multitoken split
+	char *c_firstLine = (char *)firstLine.c_str();
+	char *c_req = strtok(c_firstLine, " ");
+	char *reqURI = strtok(NULL, " ");
+	char *httpVersion = strtok(NULL, " ");
 
-	string req = c_req;
 	//check valid request
+	string req = c_req;
 	if (commands.find(req) == commands.end()){
 		sendStatus(500);
 		return;
@@ -347,49 +361,27 @@ void SingleConnServerHTML::backbone() {
 	}
 	requestURI = reqURI;
 
-	if (VERBOSE)
-		fprintf(stderr, "[%s, %s, %s] checkpoint 1\n", c_req, reqURI, httpVersion);
-
-	//skip remaining headers
-	while (true) {
-		if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
-			sendStatus(400);
-		if (VERBOSE)
-			fprintf(stderr, "checkpoint 1.5 %s\n", requestLine);
-		if (strcmp(requestLine, "\r\n") == 0)
-			break;
-	}
-	memset(requestLine, 0, sizeof(requestLine));
-	fclose(clntFp);
-
-	if (VERBOSE)
-		fprintf(stderr, "checkpoint 2\n");
-
 	if (req.compare("GET") == 0) {
+		if (VERBOSE)
+			fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
 		handleGET();
 	}
 	else if (req.compare("POST") == 0) {
-		//Can't use fgets because body is binary data
-		//Can't use fread because it blocks
-//		if (fread(requestLine, 1, 3, clntFp) == 0)
-		if (read(sock, requestLine, sizeof(requestLine)) < -1)
-			sendStatus(400);
 		if (VERBOSE)
-			fprintf(stderr, "checkpoint 3 %s\n", requestLine);
-//			string body = requestLine;
-		handlePOST(requestLine);
+			fprintf(stderr, "[%d] C: POST %s\n", sock, requestURI.c_str());
+		//get body
+		int i_endheaders = notFirstLine.find("\r\n\r\n");
+		string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
+		handlePOST((char *)body.c_str());
 	}
-	else {
+	else
 		sendStatus(501);
-	}
-
 	close(sock);
 }
 
 /*
  * Callback from main thread upon initialization of worker thread.
- * Reads HTTP request from the client into a buffer and processes it with handleRequest()
- * if a valid request is found.
+ * Initializes a SingleConnServerHTML
  */
 void *threadFunc(void *args){
 	struct thread_struct *a = (struct thread_struct *)args;
