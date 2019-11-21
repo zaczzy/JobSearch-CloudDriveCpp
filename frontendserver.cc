@@ -125,7 +125,7 @@ class SingleConnServerHTML {
 public:
 	SingleConnServerHTML(int sock, string webroot);
 	~SingleConnServerHTML();
-	void mainloop();
+	void backbone();
 private:
 	string readHTMLFromFile(string fname);
 	int sendMsg(string msg);
@@ -241,11 +241,8 @@ void SingleConnServerHTML::handleGET() {
 		fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
 	if (!loggedIn) {
 		sendStatus(200);
-		//read from templates/login.html
 		string HTML = readHTMLFromFile("templates/login.html");
-		//serve login page
 		sendMsg(HTML);
-		close(sock);
 		return;
 	}
 
@@ -305,101 +302,88 @@ void SingleConnServerHTML::handlePOST(char *body) {
 	}
 }
 
-void SingleConnServerHTML::mainloop() {
-	FILE *clntFp = fdopen(sock, "r");
+/*
+ * SWITCH OUT BUFFERED READS
+ */
+void SingleConnServerHTML::backbone() {
+	FILE *clntFp = fdopen(dup(sock), "r+b");
 	if (clntFp == NULL)
 		die("fdopen error", sock);
-
-//	//send login to start
-//	sendStatus(200);
-//	string HTML = readHTMLFromFile("templates/login.html");
-//	sendMsg(HTML);
 
 	if (VERBOSE)
 		fprintf(stderr, "[%d] S: +OK server ready [localhost]\r\n", sock);
 	char requestLine[BUFF_SIZE];
-	while (true) {
+
+	memset(requestLine, 0, sizeof(requestLine));
+
+	if (shutdownFlag)
+		die("shutdown", sock);
+
+	if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
+		sendStatus(400);
+
+	if (VERBOSE)
+		fprintf(stderr, "[%d] dee S: %s\n", sock, requestLine);
+
+	char *delim = " ";
+	char *c_req = strtok(requestLine, delim);
+	char *reqURI = strtok(NULL, delim);
+	char *httpVersion = strtok(NULL, delim);
+	char *extraGarbage = strtok(NULL, delim);
+
+	string req = c_req;
+	//check valid request
+	if (commands.find(req) == commands.end()){
+		sendStatus(500);
+		return;
+	}
+
+	//check first character in URI is "/"
+	if (reqURI[0] != '/') {
 		if (VERBOSE)
-			fprintf(stderr, "[%d] S: Waiting...\r\n", sock);
-		memset(requestLine, 0, sizeof(requestLine));
+			fprintf(stderr, "[%d] S: (no preceding slash)\n", sock);
+		sendStatus(400);
+		return;
+	}
+	requestURI = reqURI;
 
-//		struct pollfd fds[1];
-//		fds[0].fd = sock;
-//		fds[0].events = POLLIN;
-//		int ret = poll(fds, 1, 500);
-//		//poll error
-//		if (ret == -1)
-//			die("poll error", sock);
-//		//retry on timeout and empty buffer (no prev. commands)
-//		if (!ret) {
-//			if (VERBOSE)
-//				fprintf(stderr, "[%d] S: POLL FAIL\n", sock);
-//			continue;
-//		}
-//		//clntSock is readable
-//		if (fds[0].revents & POLLIN)
-//			read(sock, requestLine, sizeof(requestLine)-1);
+	if (VERBOSE)
+		fprintf(stderr, "[%s, %s, %s] checkpoint 1\n", c_req, reqURI, httpVersion);
 
-		if (shutdownFlag)
-			die("shutdown", sock);
-
+	//skip remaining headers
+	while (true) {
 		if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
 			sendStatus(400);
-
 		if (VERBOSE)
-			fprintf(stderr, "[%d] dee S: %s\n", sock, requestLine);
-
-		char *delim = " ";
-		char *c_req = strtok(requestLine, delim);
-		char *reqURI = strtok(NULL, delim);
-		char *httpVersion = strtok(NULL, delim);
-		char *extraGarbage = strtok(NULL, delim);
-
-		string req = c_req;
-		//check valid request
-		if (commands.find(req) == commands.end()){
-			sendStatus(500);
-			continue;
-		}
-
-		//check first character in URI is "/"
-		if (reqURI[0] != '/') {
-			if (VERBOSE)
-				fprintf(stderr, "[%d] S: (no preceding slash)\n", sock);
-			sendStatus(400);
-			continue;
-		}
-		requestURI = reqURI;
-
-//		if (VERBOSE)
-//			fprintf(stderr, "[%s, %s, %s] checkpoint 1\n", c_req, reqURI, httpVersion);
-
-		//skip remaining headers
-		while (true) {
-			if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
-				sendStatus(400);
-			if (strcmp(requestLine, "\r\n") == 0)
-				break;
-		}
-		memset(requestLine, 0, sizeof(requestLine));
-
-		if (VERBOSE)
-			fprintf(stderr, "checkpoint 2\n");
-
-		if (req.compare("GET") == 0) {
-			handleGET();
-		}
-		else if (req.compare("POST") == 0) {
-			if (fgets(requestLine, sizeof(requestLine), clntFp) == NULL)
-				sendStatus(400);
-//			string body = requestLine;
-			handlePOST(requestLine);
-		}
-		else {
-			sendStatus(501);
-		}
-
+			fprintf(stderr, "checkpoint 1.5 %s\n", requestLine);
+		if (strcmp(requestLine, "\r\n") == 0)
+			break;
 	}
+	memset(requestLine, 0, sizeof(requestLine));
+	fclose(clntFp);
+
+	if (VERBOSE)
+		fprintf(stderr, "checkpoint 2\n");
+
+	if (req.compare("GET") == 0) {
+		handleGET();
+	}
+	else if (req.compare("POST") == 0) {
+		//Can't use fgets because body is binary data
+		//Can't use fread because it blocks
+//		if (fread(requestLine, 1, 3, clntFp) == 0)
+		if (read(sock, requestLine, sizeof(requestLine)) < -1)
+			sendStatus(400);
+		if (VERBOSE)
+			fprintf(stderr, "checkpoint 3 %s\n", requestLine);
+//			string body = requestLine;
+		handlePOST(requestLine);
+	}
+	else {
+		sendStatus(501);
+	}
+
+	close(sock);
 }
 
 /*
@@ -413,7 +397,7 @@ void *threadFunc(void *args){
 	string webroot = (string)(a->webroot);
 
 	SingleConnServerHTML S(clntSock, webroot);
-	S.mainloop();
+	S.backbone();
 }
 
 int main(int argc, char *argv[])
