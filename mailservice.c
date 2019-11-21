@@ -1,13 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "data_types.h"
 
 #define CELLSIZE 1000
 
 enum mail_opt {
     
     SHOW_MAIL =0,
-    READ_MAIL
+    READ_MAIL,
+    SEND_MAIL,
+    DELETE_MAIL
 
 }mOpt;
 
@@ -21,25 +24,33 @@ struct email_data {
 
 };
 
-int webserver_core(int mailOpt, char *user) {
+int validateUser(char *user);
+int validateMailId(char *user, uint16_t mailId);
+int downloadEmail(char *user, uint16_t mailId, char *msg);
 
+int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user) {
+  int valid = FAILURE;    //Defensive programming
+  char send_msg[1000];
+  char recv_msg[1000];
 //Invokes backend to enquire about user
   if(user == NULL) {
     printf("Invalid user\n");
-    return -1;
+    return FAILURE;
   }
 
   int validate = validateUser(user);
   if(validate < 0) {
     printf("Invalid user %s\n", user);
-    return -1;
+    return FAILURE;
   }
 
   mOpt = mailOpt;
 
   switch(mOpt) {
     case SHOW_MAIL:                 //Downloads email headers from backend
-      numlist = retrieveIDList();
+      printf("SHOW_MAIL in core\n");
+      return 0;
+      /*numlist = retrieveIDList(user, email_id);
 
       for(i in numlist) {
         retrieveMailHeader(id_i);
@@ -48,14 +59,15 @@ int webserver_core(int mailOpt, char *user) {
       }
 
       return email_data;
-
+*/
     case READ_MAIL:
 
-      valid = validateMailId(user, id);
+      printf("READ_MAIL in core\n");
+      return 0;
+      valid = validateMailId(user, email_id);
       //Query backend with specific ID
       if(valid == 0) {
-        downloadMail(user, id, email);
-        return email;
+        downloadEmail(user, email_id, mail_msg);
       } else {
         printf("Failed to read email!!\n");
       }
@@ -64,30 +76,35 @@ int webserver_core(int mailOpt, char *user) {
       break;
     case SEND_MAIL:
   
-      valid = validaterUser(rcpt_user);
+      printf("SEND_MAIL in core\n");
+      return 0 ;
+      valid = validateUser(rcpt_user);
       if(valid < 0) {
         printf("No such user exists!!\n");
         break;
       }
 
       sprintf(send_msg, "put <%s> <%s> <%s>", rcpt_user, mail_msg);
-      send(send_msg);
+      //send(send_msg);
 
       break;
     case DELETE_MAIL:
    
+      printf("DELETE_MAIL in core\n");
+      return 0;
         //TODO: Request to backend to delete
-         valid = validateMailId();
+         valid = validateMailId(user, email_id);
           if(valid == 0) {
             sprintf(send_msg, "delete <username> <mailId>");
-            send();
+            //send();
           } else {
             printf("No such mail ID"); 
           }
           //TODO: Return success or failure
       break;
     default: 
-      return wrong_option;
+            printf("Wrong option\n");
+            return FAILURE;
   
   }//switch between email options
 
@@ -96,39 +113,47 @@ int webserver_core(int mailOpt, char *user) {
 
 int validateUser(char *user) {
 
-  sprintf(send_msg, "get <%s>");
-  send(backend, send_msg, strlen(send_msg));
+  char send_msg[1000];
+  char recv_msg[1000];
+  int failure;
+  sprintf(send_msg, "get <%s>", user);
+//  send(backend, send_msg, strlen(send_msg));
 
-  recv(backend, reply_msg, msg_len);
+  //recv(backend, reply_msg, msg_len);
 
   //TODO: Check reply_msg
 
   if (failure) 
-    return -1;
+    return FAILURE;
   else
-    return 0;
+    return SUCCESS;
 
 }
 
 int validateMailId(char *user, uint16_t mailId) {
 
+  char send_msg[1000];
+  char recv_msg[1000];
   sprintf(send_msg, "validatemail <%s> <%d>", user, mailId);
-  send(send_msg);
-  recv(validatedMsg);
+  char validateMsg[10];
+ // send(send_msg);
+ // recv(validatedMsg);
 
   if(validateMsg != "SUCCESS")
-    return -1;
+    return FAILURE;
   else  
-    return 0;
+    return SUCCESS;
 
 }
 
-int downloadEmail(user, mailId, msg) {
+int downloadEmail(char *user, uint16_t mailId, char *msg) {
 
+  char send_msg[1000];
+  char recv_msg[1000];
   sprintf(send_msg, "readmail <%s> <%d>", user, mailId);
-  send(send_msg);
+ // send(send_msg);
 
-  recv(recv_msg);
+  //recv(recv_msg);
 
   printf("EMAIL\n %s", recv_msg);
   
