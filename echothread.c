@@ -26,9 +26,9 @@ void *client_handler(void *args) {
   char *temp_ptr;
   char *write_ptr = circ_buf;
   //Buffers for command and send message
-  char msg[50];
-  char send_msg[50];
-  char cmd[30] = "";
+  char msg[1000];
+  char send_msg[1000];
+  char cmd[1000] = "";
   int bytes_read = 0;
   int is_quit = 0;
 

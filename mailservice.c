@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "data_types.h"
 
 #define CELLSIZE 1000
@@ -28,7 +31,7 @@ int validateUser(char *user);
 int validateMailId(char *user, uint16_t mailId);
 int downloadEmail(char *user, uint16_t mailId, char *msg);
 
-int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user) {
+int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd) {
   int valid = FAILURE;    //Defensive programming
   char send_msg[1000];
   char recv_msg[1000];
@@ -49,6 +52,12 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
   switch(mOpt) {
     case SHOW_MAIL:                 //Downloads email headers from backend
       printf("SHOW_MAIL in core\n");
+      printf("User: %s\n\n", user);
+      char subject[20] = "My struggles";
+      char date[20] = "Sept 1st, 3:14";
+      sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tUser inbox\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<ol>\n\t\t<li>\n\t\t\tInbox:\n\t\t\t<ul>\n\t\t\t\t<li><pre> <b>Charles Aranguiz</b>     My travels     Monday 14th Sept, 23:44 <button> Read me </button> </pre> </li>\n\t\t\t\t<li><pre> <b>%s</b>   %s   %s  <button> Read me> </button> </pre> </li>\n\t\t\t\t<li>grandpa</li>\n\t\t\t</ul>\n\t\t\t</li>\n\t\t</ol>\n\t\n\n</body>\n\n</html>\r\n", user, subject, date);
+      strcpy(html_response, send_msg);
+      //send(server_fd, send_msg, strlen(send_msg), 0);
       return 0;
       /*numlist = retrieveIDList(user, email_id);
 
@@ -63,6 +72,8 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
     case READ_MAIL:
 
       printf("READ_MAIL in core\n");
+      sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tEMAIL\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<h1>\n\t\t\tInbox:\n\t\t\t</h1>\n\t\t\t\t<p>TEXT OF EMAIL</p>\n\t\n\n</body>\n\n</html>\r\n");
+      strcpy(html_response, send_msg);
       return 0;
       valid = validateMailId(user, email_id);
       //Query backend with specific ID
@@ -77,6 +88,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
     case SEND_MAIL:
   
       printf("SEND_MAIL in core\n");
+      printf("User: %s\n Recipient: %s\n", user, rcpt_user);
       return 0 ;
       valid = validateUser(rcpt_user);
       if(valid < 0) {
@@ -91,6 +103,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
     case DELETE_MAIL:
    
       printf("DELETE_MAIL in core\n");
+      printf("User: %s\n email_id: %s\n");
       return 0;
         //TODO: Request to backend to delete
          valid = validateMailId(user, email_id);

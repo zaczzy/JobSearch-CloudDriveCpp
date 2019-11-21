@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/select.h>
+#include "mailservice.h"
 
 //#define DEBUG
 #define RECV_BUF_SIZE 256
@@ -24,7 +25,7 @@ socklen_t sin_length = sizeof(struct sockaddr_in);
 char log_message[100];
 int log_to_terminal = 0;
 FILE *log_file = NULL;
-const char *user = "JOHN";
+char *user = "JOHN";
 char email_msg[1000];
 char *rcpt_to;
 void server_close(int server_fd);
@@ -91,8 +92,10 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
       if(state == 0) {
         if(!strcasecmp(cmd0, "INBOX")) {
           //Retrieve user inbox
+           char response[1000];
            printf("Display inbox:\n");
-           webserver_core(0, user, -1, NULL, NULL);
+           webserver_core(0, user, -1, NULL, NULL, response, server_fd);
+           send(server_fd, response, strlen(response), 0);
         } else if(!strcasecmp(cmd0, "READ")) {
              char *cmd1 = strtok(NULL, "\x0A");
               if(cmd1 == NULL) {
@@ -101,9 +104,11 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
                }
               
               int email_id = atoi(cmd1); 
+              char response[1000];
 
               printf("Read email id:%d\n", email_id);
-              webserver_core(1, user, email_id, NULL, NULL);
+              webserver_core(1, user, email_id, NULL, NULL, response, server_fd);
+              send(server_fd, response, strlen(response), 0);
               //Read email for user with email id email_id
   
         } else if(!strcasecmp(cmd0, "DELETE")) {
@@ -115,7 +120,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               
               int email_id = atoi(cmd1); 
               printf("Delete email id:%d\n", email_id);
-              webserver_core(3, user, email_id, NULL, NULL);
+              webserver_core(3, user, email_id, NULL, NULL, NULL, server_fd);
               //Delete email for user with email id email_id
   
         } else if(!strcasecmp(cmd0, "SEND")) {
@@ -168,7 +173,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
       
       } else if(state == 3) { 
           if(!strcasecmp(cmd0, "." )) {
-            webserver_core(2, user, -1, email_msg, rcpt_to);              
+            webserver_core(2, user, -1, email_msg, rcpt_to, NULL, server_fd);  
             memset(email_msg, 0, sizeof(email_msg));
             state = 1;
           }
@@ -288,6 +293,7 @@ int main(int argc, char *argv[])
     perror("init_connection failed\n");
   }
 
+  maxfds++;
   FD_SET(server_fd, &readfds);
   FD_SET(STDIN_FILENO, &readfds);
   char recv_buf[RECV_BUF_SIZE];
@@ -297,7 +303,7 @@ int main(int argc, char *argv[])
 
   while(!is_exit) {
 
- //   FD_SET(server_fd, &readfds);
+    FD_SET(server_fd, &readfds);
     FD_SET(STDIN_FILENO, &readfds);
 
     uint8_t sel_ret = select(maxfds, &readfds, NULL, NULL, &time);
@@ -305,12 +311,12 @@ int main(int argc, char *argv[])
       perror("Select failed");
       continue;
     }
- /*   
+ 
     if(FD_ISSET(server_fd, &readfds)) {
       server_recv_callback(recv_buf, server_fd);
       FD_CLR(server_fd, &readfds);
     }
-*/
+
     if(FD_ISSET(STDIN_FILENO, &readfds)) {
 #ifdef DEBUG
     printf("In STDIN_FILENO\n");
