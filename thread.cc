@@ -25,7 +25,7 @@ void* read_commands(void* args)
     /** Register the signal handler */
     //signal(SIGINT, handle_sigint);
 
-    char buffer[1000];
+    char buffer[2048];
     unsigned int len = 0;
     bool command_completed = 0;
     while(!terminate)
@@ -34,12 +34,17 @@ void* read_commands(void* args)
         command_completed = 0;
         memset(buffer, 0, sizeof(buffer));
 
-        while (!command_completed)
+        //while (!command_completed)
         {
             /** Read the command from the client */
             int ret;
-            ret = read(*client_fd, buffer + len, sizeof(char));
+            ret = read(*client_fd, buffer, sizeof(buffer));
 
+            if (ret == 0)
+            {
+                continue;
+            }
+            printf("read %d bytes\n", ret);
             if (terminate)
                 goto term;
 
@@ -48,34 +53,43 @@ void* read_commands(void* args)
                 // ERror
                 exit(EXIT_FAILURE);
             }
-            else
-            {
-                len += ret;
-            }
+            //else
+            //{
+            //    len += ret;
+            //}
+            
+            printf("calling process command\n");
+            bool close_connection = process_command(buffer, ret, *client_fd);
+            
+            //if (close_connection)
+            //    goto term;
+            command_completed = true;
 
-            if (buffer[len - 1] == '\r')
-            {
-                int ret = read(*client_fd, buffer + len, sizeof(char));
-                if (ret < 0)
-                {
-                    // ERror
-                }
-                else
-                {
-                    len += ret;
-                }
+            //if (buffer[len - 1] == '\r')
+            //{
+            //    int ret = read(*client_fd, buffer + len, sizeof(char));
+            //    if (ret < 0)
+            //    {
+            //        // ERror
+            //    }
+            //    else
+            //    {
+            //        len += ret;
+            //    }
 
-                if (buffer[len - 1] == '\n')
-                {
-                    buffer[len - 2] = '\0';
-                    bool close_connection = process_command(buffer, len - 1, *client_fd);
-                    
-                    if (close_connection)
-                        goto term;
-                    command_completed = true;
-                }
+            //    if (buffer[len - 1] == '\n')
+            //    {
+            //        buffer[len - 2] = '\0';
+            //        // TODO: remove
+            //        printf("calling process command\n");
+            //        bool close_connection = process_command(buffer, len - 1, *client_fd);
+            //        
+            //        if (close_connection)
+            //            goto term;
+            //        command_completed = true;
+            //    }
 
-            }
+            //}
 
         }
     }

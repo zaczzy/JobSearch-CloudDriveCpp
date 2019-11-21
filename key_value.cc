@@ -84,6 +84,8 @@ bool add_user(char* username, char* password)
     tablet_row row;
     row.password = std::string(password);
 
+    if (verbose)
+        printf("Added user %s\n", username);
     tablet.insert(std::make_pair(username, row));
 
     return SUCCESS;
@@ -306,25 +308,25 @@ bool store_file(put_file_request* request)
     return SUCCESS;
 }
 
-bool process_command(char* buffer, int len, int fd)
+bool process_command(char* command, int len, int fd)
 {
     char message[64];
 
-    printf("command: %s len: %d\n", buffer, len);
+    //printf("command: %s len: %d\n", buffer, len);
 
-    char* command = strtok(buffer, " ");
+    //char* command = strtok(buffer, " ");
 
-    if (command == NULL)
-    {
-        if (verbose)
-            printf("command is NULL\n");
-        return SUCCESS;
-    }
+    //if (command == NULL)
+    //{
+    //    if (verbose)
+    //        printf("command is NULL\n");
+    //    return SUCCESS;
+    //}
 
     /** add user command */
-    if (strcmp(command, "add") == 0 || strcmp(command, "ADD") == 0)
+    if (strncmp(command, "add", strlen("add")) == 0 || strncmp(command, "ADD", strlen("ADD")) == 0)
     {
-        char* username = strtok(NULL, " ");
+        char* username = strtok(command + strlen("add"), " ");
         char* password = strtok(NULL, " ");
 
         /** Add the user */
@@ -342,9 +344,9 @@ bool process_command(char* buffer, int len, int fd)
         return SUCCESS;
     }
     /** delete user command */
-    else if (strcmp(command, "delete") == 0 || strcmp(command, "DELETE") == 0)
+    else if (strncmp(command, "delete", strlen("delete")) == 0 || strncmp(command, "DELETE", strlen("DELETE")) == 0)
     {
-        char* username = strtok(NULL, " ");
+        char* username = strtok(command + strlen("delete"), " ");
         char* password = strtok(NULL, " ");
 
         /** Delete the user */
@@ -364,6 +366,7 @@ bool process_command(char* buffer, int len, int fd)
     /** put email command */
     else if (strncmp(command, "putmail", 7) == 0 || strncmp(command, "PUTMAIL", 7) == 0)
     {
+        printf("putmil request\n");
         put_mail_request* mail_request = (put_mail_request*)command;
 
         /** Store the new mail */
