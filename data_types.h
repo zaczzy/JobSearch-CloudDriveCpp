@@ -1,5 +1,5 @@
 
-//#include <vector>
+#include <vector>
 
 #define SUCCESS         0
 #define FAILURE         1
@@ -17,13 +17,24 @@ typedef struct
 }login_request;
 
 #pragma pack(1)
-typedef struct 
+struct email_header 
 {
     char from[64];
     char to[64];
     char subject[256];
     char date[64];
-}email_header;
+    
+    bool operator==(const struct email_header& header) const
+    {
+        if (strncmp(subject, header.subject, strlen(subject)) == 0)
+        {
+            if (strncmp(date, header.date, strlen(date)) == 0)
+                return true;
+        }
+
+        return false;
+    }
+};
 
 #pragma pack(1)
 typedef struct
@@ -42,17 +53,63 @@ typedef struct
     char prefix[8];     // Should be "getmail""
     char username[32];
     char email_id[64];
-    uint64_t num_emails;
-    email_header email_headers[MAX_EMAILS];
 }get_mail_request;
 
 #pragma pack(1)
 typedef struct
 {
-    char prefix[6];     // Should be "drive"
+    char prefix[8];     // Should be "getmail""
+    char username[32];
+    char email_id[64];
+    uint64_t num_emails;
+    email_header email_headers[MAX_EMAILS];
+}get_mail_response;
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[8];     // Should be "putfile"
     char username[32];
     char filename[256];
     uint64_t file_len;
     char file_content[MAX_SIZE_FILE];
+}put_file_request;
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[8];     // Should be "getfile"
+    char username[32];
+    char filename[256];
 }get_file_request;
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[8];     // Should be "getfile"
+    char username[32];
+    char filename[256];
+    uint64_t file_len;
+    char file_content[MAX_SIZE_FILE];
+}get_file_response;
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[9];     // Should be "mailbody"
+    char username[32];
+    char email_id[64];
+    uint64_t index;
+}get_mail_body_request;
+
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[9];     // Should be "mailbody"
+    char username[32];
+    char email_id[64];
+    uint64_t mail_body_len;
+    char mail_body[MAX_LEN_EMAIL_BODY];
+}get_mail_body_response;
 

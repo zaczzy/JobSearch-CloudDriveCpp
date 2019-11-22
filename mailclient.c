@@ -25,10 +25,11 @@ socklen_t sin_length = sizeof(struct sockaddr_in);
 char log_message[100];
 int log_to_terminal = 0;
 FILE *log_file = NULL;
-char *user = "JOHN";
+char *user = "john";
 char email_msg[1000];
 char rcpt_to[100];
 int msg_len = 0;
+int email_index = 0;
 void server_close(int server_fd);
 
 //Signal SIGINT callback
@@ -95,47 +96,49 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
         if(!strcasecmp(cmd0, "INBOX")) {
           //Retrieve user inbox
            char response[1000];
-           printf("Display inbox:\n");
-           webserver_core(0, user, -1, NULL, NULL, response, server_fd);
-           send(server_fd, response, strlen(response), 0);
+           printf("250 OK Enter User email\n");
+           state = 4;
+          // send(server_fd, response, strlen(response), 0);
         } else if(!strcasecmp(cmd0, "READ")) {
              char *cmd1 = strtok(NULL, "\x0A");
               if(cmd1 == NULL) {
-                printf("Invalid command\n");
+                printf("500 ERR: Invalid command\n");
                 return;
                }
               
-              int email_id = atoi(cmd1); 
+              email_index = atoi(cmd1); 
               char response[1000];
-
-              printf("Read email id:%d\n", email_id);
-              webserver_core(1, user, email_id, NULL, NULL, response, server_fd);
-              send(server_fd, response, strlen(response), 0);
+  
+              state = 5;
+            //  send(server_fd, response, strlen(response), 0);
               //Read email for user with email id email_id
   
         } else if(!strcasecmp(cmd0, "DELETE")) {
              char *cmd1 = strtok(NULL, "\x0A");
               if(cmd1 == NULL) {
                 printf("Invalid command\n");
+                printf("500 ERR: Invalid command\n");
                 return;
                }
               
               int email_id = atoi(cmd1); 
-              printf("Delete email id:%d\n", email_id);
+              //printf("250 OK Delete email id:%d\n", email_id);
+              printf("250 OK\n");
               webserver_core(3, user, email_id, NULL, NULL, NULL, server_fd);
               //Delete email for user with email id email_id
   
         } else if(!strcasecmp(cmd0, "SEND")) {
+              printf("250 OK\n");
               state = 1;
-              printf("Send mail\n");
               return;
   
        } else if(!strcasecmp(cmd0, "QUIT")) {
+              printf("250 OK\n");
               is_exit = 1;
               return;
         } else {
 
-            printf("Invalid command\n");
+            printf("500 ERR: Invalid command\n");
             return;
 
         }
@@ -145,10 +148,11 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
             //Validate user
             char *tmp = strtok(NULL, "\x0A");
             memcpy(rcpt_to, tmp, strlen(tmp));
-            printf("%s\n", rcpt_to);
+            printf("250 OK\n");
             state = 2;
 
         } else if(!strcasecmp(cmd0, "quit")) {
+            printf("250 OK\n");
             state  = 0;
 
            //Quiting edit mail
@@ -165,23 +169,52 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
 
         } else {
 
-          printf("Please enter DATA:<msg>\n");
+          printf("500 ERR: Please enter DATA:<msg>\n");
           return;
         }
       
       
       } else if(state == 3) { 
           if(!strcasecmp(cmd0, "." )) {
+            printf("250 OK DATA");
             email_msg[msg_len] = '\0';
             webserver_core(2, user, -1, email_msg, rcpt_to, NULL, server_fd);  
             memset(email_msg, 0, sizeof(email_msg));
+            memset(rcpt_to, 0, sizeof(rcpt_to));
             msg_len = 0;
-            state = 1;
+            state = 0;
           }
            
           strcpy(email_msg + msg_len, cmd0);
           msg_len += strlen(lineptr);
   
+      } else if(state == 4) {
+
+        if(!strcasecmp(cmd0, "rcpt_to")) {
+            //Validate user
+            char *tmp = strtok(NULL, "\x0A");
+            char response[1000];
+            memcpy(rcpt_to, tmp, strlen(tmp));
+            printf("250 OK\n");
+            webserver_core(0, user, -1, NULL, rcpt_to, response, server_fd);
+            memset(rcpt_to, 0, sizeof(rcpt_to));
+            state = 0;
+        }
+
+      } else if(state == 5) {
+
+        if(!strcasecmp(cmd0, "rcpt_to")) {
+            //Validate user
+            char *tmp = strtok(NULL, "\x0A");
+            char response[1000];
+            memcpy(rcpt_to, tmp, strlen(tmp));
+            printf("250 OK\n");
+            webserver_core(1, user, email_index, NULL, rcpt_to, response, server_fd);
+            memset(rcpt_to, 0, sizeof(rcpt_to));
+            email_index = 0 ;
+            state = 0;
+        }
+
       }
 
       /*
@@ -305,7 +338,7 @@ int main(int argc, char *argv[])
 
   while(!is_exit) {
 
-    FD_SET(server_fd, &readfds);
+ //   FD_SET(server_fd, &readfds);
     FD_SET(STDIN_FILENO, &readfds);
 
     uint8_t sel_ret = select(maxfds, &readfds, NULL, NULL, &time);
