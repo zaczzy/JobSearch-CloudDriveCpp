@@ -113,3 +113,12 @@ typedef struct
     char mail_body[MAX_LEN_EMAIL_BODY];
 }get_mail_body_response;
 
+#pragma pack(1)
+typedef struct
+{
+    char prefix[8];     // Should be "delmail"
+    char username[32];
+    char email_id[64];
+    uint64_t index;
+}delete_mail_request;
+
