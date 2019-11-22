@@ -24,9 +24,11 @@ using namespace std;
 
 int BUFF_SIZE = 2048;
 int MAX_CLNT = 100;
+int BACKEND_PORT = 5000;
 bool VERBOSE = false;
 bool shutdownFlag = false;
-bool loggedIn = false;
+int backendSock = -1;
+pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
 map<string, pthread_mutex_t> locks;
 set<pthread_t> threads;
 
@@ -123,6 +125,35 @@ int createServerSocket(unsigned short port){
 }
 
 /*
+ * Create client socket. Make it reusable.
+ */
+int createClientSocket(unsigned short port) {
+	int clntSock;
+	struct sockaddr_in servAddr;
+
+	if ((clntSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		die("socket() failed", -1);
+
+	//Reusable
+	int enable = 1;
+	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+		die("setsockopt(SO_REUSEADDR) failed", clntSock);
+	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
+		die("setsockopt(SO_REUSEPORT) failed", clntSock);
+
+	memset(&servAddr, 0, sizeof(servAddr));
+	servAddr.sin_family= AF_INET;
+	servAddr.sin_addr.s_addr= inet_addr("127.0.0.1");
+	servAddr.sin_port= htons(port);
+
+	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
+		die("connect failed", clntSock);
+
+//  ADD username password
+//	AUTH username password
+}
+
+/*
  * Handles HTML service with one client.
  */
 class SingleConnServerHTML {
@@ -140,7 +171,7 @@ private:
 	int sock;
 	string webroot;
 	string requestURI;
-//	bool loggedIn;
+	bool loggedIn;
 	string redirectTo; //the page a user attempts to visit before redirected to login
 	set<string> commands;
 	map<int, string> status2reason;
@@ -152,7 +183,7 @@ private:
 SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
-//	loggedIn = false;
+	loggedIn = false;
 	commands = {
 		"GET",
 		"POST"
@@ -211,7 +242,7 @@ void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
 	//get corresponding reason in words
 	string reason = status2reason[statusCode];
 	//status line (
-	string statusLine = "HTTP/2.0 " + to_string(statusCode) + " " + reason + "\r\n";
+	string statusLine = "HTTP/1.1 " + to_string(statusCode) + " " + reason + "\r\n";
 	if (length > 0) {
 		statusLine += "Content-Length: " + to_string(length) + "\r\n";
 		statusLine += "Content-Type: text/html\r\n";
@@ -302,8 +333,23 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		char *delim = "&\n";
 		char *user_str = strtok(body, delim);
 		char *pass_str = strtok(NULL, delim);
+		char *remember_str = strtok(NULL, delim);
 		string user = user_str + strlen("user=");
 		string pass = pass_str + strlen("pass=");
+		string remember = remember_str + strlen("remember=");
+
+		if (remember.compare("") != 0) {
+			string s_addCmd = "ADD " + user + " " + pass;
+			pthread_mutex_lock(&mutex_backendSock);
+			write(backendSock, s_addCmd.c_str(), s_addCmd.length());
+			pthread_mutex_unlock(&mutex_backendSock);
+			//redirect to login page
+			//TODO: add message stating account add successful
+			string HTML = readHTMLFromFile("templates/login.html");
+			sendStatus(200, HTML.length());
+			sendMsg(HTML);
+			return;
+		}
 
 		//hardcoded user/pass:
 		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
@@ -343,7 +389,6 @@ void SingleConnServerHTML::backbone() {
 		if (shutdownFlag)
 			die("shutdown", sock);
 
-		cout << "hiya" << endl;
 		if (read(sock, c_requestLine, sizeof(c_requestLine)) < -1)
 			sendStatus(400);
 
@@ -372,6 +417,8 @@ void SingleConnServerHTML::backbone() {
 
 		string httpVersion = c_httpVersion;
 		if (httpVersion.compare("HTTP/1.1") != 0) {
+			if (VERBOSE)
+				fprintf(stderr, "[%d] S: ERR: wrong HTTP version\n", sock);
 			sendStatus(500);
 			continue;
 		}
@@ -379,7 +426,7 @@ void SingleConnServerHTML::backbone() {
 		//check first character in URI is "/"
 		if (reqURI[0] != '/') {
 			if (VERBOSE)
-				fprintf(stderr, "[%d] S: (no preceding slash)\n", sock);
+				fprintf(stderr, "[%d] S: ERR: no preceding slash\n", sock);
 			sendStatus(400);
 //			return;
 			continue;
@@ -387,13 +434,9 @@ void SingleConnServerHTML::backbone() {
 		requestURI = reqURI;
 
 		if (req.compare("GET") == 0) {
-//			if (VERBOSE)
-//				fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
 			handleGET();
 		}
 		else if (req.compare("POST") == 0) {
-//			if (VERBOSE)
-//				fprintf(stderr, "[%d] C: POST %s\n", sock, requestURI.c_str());
 			//get body
 			int i_endheaders = notFirstLine.find("\r\n\r\n");
 			string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
@@ -422,7 +465,7 @@ int main(int argc, char *argv[])
 {
 	int c;
 	int N = 0;
-	int port = 8000;
+	int servPort = 8000;
 	string webroot;
 	string buff;
 
@@ -439,7 +482,7 @@ int main(int argc, char *argv[])
 			VERBOSE = true;
 		}
 		else if (c == 'p') {
-			port = stoi(optarg);
+			servPort = stoi(optarg);
 		}
 		else if (c == 'a'){
 			fprintf(stderr, "*** Author: Michal Porubcin (michal19)\n");
@@ -453,10 +496,11 @@ int main(int argc, char *argv[])
 	webroot = argv[optind];
 
 	if (VERBOSE)
-		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webroot.c_str(), port);
+		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webroot.c_str(), servPort);
 
 	//Start serving
-	int servSock = createServerSocket(port);
+	int servSock = createServerSocket(servPort);
+//	backendSock = createClientSocket(BACKEND_PORT);
 	while (true) {
 		if (threads.size() > MAX_CLNT)
 			continue;
