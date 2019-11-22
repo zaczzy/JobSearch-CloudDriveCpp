@@ -128,56 +128,66 @@ int createServerSocket(unsigned short port){
  * Create client socket. Make it reusable.
  */
 int createClientSocket(unsigned short port) {
-	int sockfd, connfd;
-	struct sockaddr_in servaddr, cli;
-
-	// socket create and varification
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd == -1) {
-		printf("socket creation failed...\n");
-		exit(0);
-	}
-	else
-		printf("Socket successfully created..\n");
-	bzero(&servaddr, sizeof(servaddr));
-
-	// assign IP, PORT
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	servaddr.sin_port = htons(PORT);
-
-	// connect the client socket to server socket
-	if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) {
-		printf("connection with the server failed...\n");
-		exit(0);
-	}
-	else
-		printf("connected to the server..\n");
-
-
-//	int clntSock;
-//	struct sockaddr_in servAddr;
+//	int sockfd, connfd;
+//	struct sockaddr_in servaddr, cli;
 //
-//	if ((clntSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-//		die("socket() failed", -1);
+//	// socket create and varification
+//	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+//	if (sockfd == -1) {
+//		printf("socket creation failed...\n");
+//		exit(0);
+//	}
+//	else
+//		printf("Socket successfully created..\n");
+//	bzero(&servaddr, sizeof(servaddr));
 //
-//	//Reusable
-//	int enable = 1;
-//	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-//		die("setsockopt(SO_REUSEADDR) failed", clntSock);
-//	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
-//		die("setsockopt(SO_REUSEPORT) failed", clntSock);
+//	// assign IP, PORT
+//	servaddr.sin_family = AF_INET;
+//	servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+//	servaddr.sin_port = htons(port);
 //
-//	memset(&servAddr, 0, sizeof(servAddr));
-//	servAddr.sin_family= AF_INET;
-//	servAddr.sin_addr.s_addr= inet_addr("127.0.0.1");
-//	servAddr.sin_port= htons(port);
+//	// connect the client socket to server socket
+//	if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0) {
+//		printf("connection with the server failed...\n");
+//		exit(0);
+//	}
+//	else
+//		printf("connected to the server..\n");
 //
-//	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
-//		die("connect failed", clntSock);
+//	return sockfd;
 
-//  ADD username password
-//	AUTH username password
+	int clntSock;
+	struct sockaddr_in servAddr;
+
+	if ((clntSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		die("socket() failed", -1);
+
+	//Reusable
+	int enable = 1;
+	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+		die("setsockopt(SO_REUSEADDR) failed", clntSock);
+	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
+		die("setsockopt(SO_REUSEPORT) failed", clntSock);
+
+	memset(&servAddr, 0, sizeof(servAddr));
+	servAddr.sin_family= AF_INET;
+	servAddr.sin_addr.s_addr= inet_addr("127.0.0.1");
+	servAddr.sin_port= htons(port);
+
+	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
+		die("connect failed", clntSock);
+
+	//Clear welcome message from socket
+	char buff[BUFF_SIZE];
+	memset(buff, 0, sizeof(buff));
+	read(clntSock, buff, sizeof(buff));
+	if (VERBOSE)
+		fprintf(stderr, "%s\n", buff);
+
+	return clntSock;
+
+	//  ADD username password
+	//	AUTH username password
 }
 
 /*
@@ -294,6 +304,23 @@ void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
 }
 
 /*
+ * Send command to backend
+ */
+string sendCommand(string command) {
+	char buff[BUFF_SIZE];
+//	cout << ")))" << command.c_str() << endl;
+	pthread_mutex_lock(&mutex_backendSock);
+	char *c_command = (char *)command.c_str();
+	write(backendSock, c_command, strlen(c_command));
+	read(backendSock, buff, sizeof(buff));
+	pthread_mutex_unlock(&mutex_backendSock);
+	if (VERBOSE)
+		fprintf(stderr, "%s\n", buff);
+	string result = buff;
+	return result;
+}
+
+/*
  * Read in an html file from disk.
  */
 string SingleConnServerHTML::readHTMLFromFile(string fname) {
@@ -355,25 +382,24 @@ void SingleConnServerHTML::handleGET() {
  */
 void SingleConnServerHTML::handlePOST(char *body) {
 	char buff[BUFF_SIZE];
+	memset(buff, 0, sizeof(buff));
 	if (requestURI.compare("/handle_login") == 0) {
 		//parse login data e.g. user=michal&pass=p
 		char *delim = "&\n";
 		char *user_str = strtok(body, delim);
 		char *pass_str = strtok(NULL, delim);
-		char *remember_str = strtok(NULL, delim);
+		char *adduser_str = strtok(NULL, delim);
 		string user = user_str + strlen("user=");
 		string pass = pass_str + strlen("pass=");
-		string remember = remember_str + strlen("adduser=");
+		cout << "\n===" << user << "," << pass << "===\n" << endl;
 
-		if (remember.compare("") != 0) {
-			char buff[BUFF_SIZE];
+		//Add new user
+		if (adduser_str != NULL && strlen(adduser_str) > 0) {
+			cout << "BYE" << endl;
+//			string remember = adduser_str + strlen("adduser=");
 			string s_addCmd = "ADD " + user + " " + pass;
-			pthread_mutex_lock(&mutex_backendSock);
-			write(backendSock, s_addCmd.c_str(), s_addCmd.length());
-			read(backendSock, buff, sizeof(buff));
-			if (VERBOSE)
-				fprintf(stderr, "%s", buff);
-			pthread_mutex_unlock(&mutex_backendSock);
+			sendCommand(s_addCmd);
+
 			//redirect to login page
 			//TODO: add message stating account add successful
 			string HTML = readHTMLFromFile("templates/login.html");
@@ -381,6 +407,13 @@ void SingleConnServerHTML::handlePOST(char *body) {
 			sendMsg(HTML);
 			return;
 		}
+
+		//Authenticate
+//		string s_authCmd = "AUTH " + user + " " + pass;
+//		string authResult = sendCommand(s_authCmd);
+//		string okerr = authResult.substr(0,3);
+//		if (authResult.substr(0,3).compare("+OK") != 0) {
+//			cout << "HI" << endl;
 
 		//hardcoded user/pass:
 		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
@@ -414,8 +447,7 @@ void SingleConnServerHTML::backbone() {
 		//Can't use strtok because of multichar delimiters \r\n and \r\n\r\n
 
 		char c_requestLine[BUFF_SIZE];
-
-	//	memset(c_requestLine, 0, sizeof(c_requestLine));
+		memset(c_requestLine, 0, sizeof(c_requestLine));
 
 		if (shutdownFlag)
 			die("shutdown", sock);
