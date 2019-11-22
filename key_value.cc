@@ -29,7 +29,7 @@ public:
 typedef struct
 {
     uint64_t num_emails;
-    std::vector<email_header> header_list;
+    std::vector<email_header*> header_list;
     std::vector<char*> body_list;
 }mail_content;
 
@@ -133,13 +133,16 @@ bool store_email(put_mail_request* request)
         /** Add the new email */
         mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
         // TODO: Check NULL
-        content->num_emails = 1;
+        content->num_emails++;
 
         char* mail_body = (char*)malloc(request->email_len * sizeof(char));
-        // TODO: Check NULL
-        strncpy(mail_body, request->email_body, request->email_len);
+        email_header* mail_header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
+        // TODO: Check NULL for  both header and body
 
-        content->header_list.push_back(request->header);
+        strncpy(mail_body, request->email_body, request->email_len);
+        *mail_header = request->header;
+
+        content->header_list.push_back(mail_header);
         content->body_list.push_back(mail_body);
        
         tablet_column* col = &(row_itr->second);
@@ -156,10 +159,12 @@ bool store_email(put_mail_request* request)
         content->num_emails = 1;
 
         char* mail_body = (char*)malloc(request->email_len * sizeof(char));
+        email_header* mail_header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
         // TODO: Check NULL
         strncpy(mail_body, request->email_body, request->email_len);
+        *mail_header = request->header;
 
-        content->header_list.push_back(request->header);
+        content->header_list.push_back(mail_header);
         content->body_list.push_back(mail_body);
        
         col.content = content; 
@@ -193,16 +198,19 @@ bool get_email_list(get_mail_request* request, get_mail_response* response)
     map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
     {
+        printf("column name: %s\n", row_itr->first.c_str());
         tablet_column* col = &(row_itr->second);
-        mail_content* content = (mail_content*)col;
+        mail_content* content = (mail_content*)col->content;
         
+        printf("num emails: %d header list size: %d mail list size: %d\n", content->num_emails, content->header_list.size(), content->body_list.size());
         response->num_emails = content->header_list.size();
         strncpy(response->prefix, request->prefix, strlen(request->prefix));
         strncpy(response->username, request->username, strlen(request->username));
         strncpy(response->email_id, request->email_id, strlen(request->email_id));
         for (unsigned int i = 0; i < content->header_list.size(); i++)
         {
-            response->email_headers[i] = content->header_list[i];
+            printf("mail content: %s\n", content->body_list[i]);
+            response->email_headers[i] = *(content->header_list[i]);
         }
     }
     else /** column doesn't exist */
@@ -312,7 +320,7 @@ bool process_command(char* command, int len, int fd)
 {
     char message[64];
 
-    //printf("command: %s len: %d\n", buffer, len);
+    //printf("command: %s len: %d\n", command, len);
 
     //char* command = strtok(buffer, " ");
 
@@ -449,6 +457,7 @@ bool process_command(char* command, int len, int fd)
     
     else
     {
+        printf("command: %s\n", command);
         strncpy(message, "-ERR unknown command", strlen("-ERR unknown command"));
 
         message[strlen(message)] = '\0';

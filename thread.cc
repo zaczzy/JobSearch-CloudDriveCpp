@@ -58,7 +58,7 @@ void* read_commands(void* args)
             //    len += ret;
             //}
             
-            printf("calling process command\n");
+            //printf("buffer: %s\n", buffer);
             bool close_connection = process_command(buffer, ret, *client_fd);
             
             //if (close_connection)
