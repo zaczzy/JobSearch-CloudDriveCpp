@@ -133,7 +133,7 @@ public:
 private:
 	string readHTMLFromFile(string fname);
 	int sendMsg(string msg);
-	void sendStatus(int statusCode);
+	void sendStatus(int statusCode, int length);
 	void handleGET();
 	void handlePOST(char *body);
 
@@ -198,28 +198,38 @@ int SingleConnServerHTML::sendMsg(string msg) {
 	if (shutdownFlag || i < 0)
 		die("Shutdown flag or write fail", sock);
 	if (VERBOSE)
-		fprintf(stderr, "[%d] S: %s\n", sock, m);
+		fprintf(stderr, "[%d] S: %s", sock, m);
 	return 1;
 }
 
 /*
  * Sends a status code with the description.
  * Non-200 codes are wrapped in HTML to display.
+ * Note: HTTP version used here affects msg version received from client!
  */
-void SingleConnServerHTML::sendStatus(int statusCode) {
+void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
 	//get corresponding reason in words
 	string reason = status2reason[statusCode];
-	//status line
-	string statusLine = "HTTP/1.0 " + to_string(statusCode) + " " + reason + "\r\n";
-	//no headers
-	statusLine += "\r\n";
+	//status line (
+	string statusLine = "HTTP/2.0 " + to_string(statusCode) + " " + reason + "\r\n";
+	if (length > 0) {
+		statusLine += "Content-Length: " + to_string(length) + "\r\n";
+		statusLine += "Content-Type: text/html\r\n";
+	}
 	//format in HTML if not 200
 	if (statusCode != 200) {
 		string body =
 				"<html><body><h1> " +
 				to_string(statusCode) + " " + reason +
 				" </h1></body></html>";
+		statusLine += "Content-Length: " + to_string(body.length()) + "\r\n";
+		statusLine += "Content-Type: text/html\r\n";
+		statusLine += "\r\n";
 		statusLine += body;
+	}
+	//no headers
+	else {
+		statusLine += "\r\n";
 	}
 
 	sendMsg(statusLine);
@@ -241,6 +251,7 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 	while (getline(infile, line)) {
 		HTML += line;
 	}
+	HTML += "\r\n\r\n";
 
 	return HTML;
 }
@@ -251,28 +262,28 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 void SingleConnServerHTML::handleGET() {
 	if (!loggedIn) {
 		redirectTo = requestURI;
-		sendStatus(200);
 		string HTML = readHTMLFromFile("templates/login.html");
+		sendStatus(200, HTML.length()); //possibly -4 length
 		sendMsg(HTML);
 		return;
 	}
 
 	if (requestURI.compare("/index.html") == 0 || requestURI.compare("/") == 0) {
-		//send OK status
-		sendStatus(200);
 		//read from templates/index.html
 		string HTML = readHTMLFromFile("templates/index.html");
+		//send OK and headers
+		sendStatus(200, HTML.length());
 		//serve landing page
 		sendMsg(HTML);
 	}
 	else if (requestURI.compare("/mail.html") == 0) {
-		sendStatus(200);
 		string HTML = readHTMLFromFile("templates/mail.html");
+		sendStatus(200, HTML.length());
 		sendMsg(HTML);
 	}
 	else if (requestURI.compare("/storage.html") == 0) {
-		sendStatus(200);
 		string HTML = readHTMLFromFile("templates/storage.html");
+		sendStatus(200, HTML.length());
 		sendMsg(HTML);
 	}
 	else {
@@ -298,8 +309,8 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
 			//redirect to login page
 			//TODO: add message stating invalid credentials
-			sendStatus(200);
 			string HTML = readHTMLFromFile("templates/login.html");
+			sendStatus(200, HTML.length());
 			sendMsg(HTML);
 			return;
 		}
@@ -315,67 +326,82 @@ void SingleConnServerHTML::handlePOST(char *body) {
  * Main
  */
 void SingleConnServerHTML::backbone() {
-	//Can't use fgets because POST body is binary data
-	//Can't use fread because it blocks (size of POST body variable)
-	//Can't use fgets for GET and read for POST because buffered read interferes with standalone read
-	//And I don't want to use nonblocking sockets
-	//Can't use strtok because of multichar delimiters \r\n and \r\n\r\n
-
 	if (VERBOSE)
 		fprintf(stderr, "[%d] S: +OK server ready [localhost]\r\n", sock);
-	char c_requestLine[BUFF_SIZE];
 
-	memset(c_requestLine, 0, sizeof(c_requestLine));
+	while (true) {
+		//Can't use fgets because POST body is binary data
+		//Can't use fread because it blocks (size of POST body variable)
+		//Can't use fgets for GET and read for POST because buffered read interferes with standalone read
+		//And I don't want to use nonblocking sockets
+		//Can't use strtok because of multichar delimiters \r\n and \r\n\r\n
 
-	if (shutdownFlag)
-		die("shutdown", sock);
+		char c_requestLine[BUFF_SIZE];
 
-	if (read(sock, c_requestLine, sizeof(c_requestLine)) < -1)
-		sendStatus(400);
+	//	memset(c_requestLine, 0, sizeof(c_requestLine));
 
-	//from strtok single character delimiter, modify in-place, char * hell to string paradise
-	string requestLine = c_requestLine;
-	int i_endline = requestLine.find("\r\n");
-	string firstLine = requestLine.substr(0, i_endline);
-	string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
+		if (shutdownFlag)
+			die("shutdown", sock);
 
-	//I exaggerated strtok can be better for multitoken split
-	char *c_firstLine = (char *)firstLine.c_str();
-	char *c_req = strtok(c_firstLine, " ");
-	char *reqURI = strtok(NULL, " ");
-	char *httpVersion = strtok(NULL, " ");
+		cout << "hiya" << endl;
+		if (read(sock, c_requestLine, sizeof(c_requestLine)) < -1)
+			sendStatus(400);
 
-	//check valid request
-	string req = c_req;
-	if (commands.find(req) == commands.end()){
-		sendStatus(500);
-		return;
-	}
-
-	//check first character in URI is "/"
-	if (reqURI[0] != '/') {
 		if (VERBOSE)
-			fprintf(stderr, "[%d] S: (no preceding slash)\n", sock);
-		sendStatus(400);
-		return;
-	}
-	requestURI = reqURI;
+			fprintf(stderr, "[%d] C: %s\n", sock, c_requestLine);
 
-	if (req.compare("GET") == 0) {
-		if (VERBOSE)
-			fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
-		handleGET();
+		//from strtok single character delimiter, modify in-place, char * hell to string paradise
+		string requestLine = c_requestLine;
+		int i_endline = requestLine.find("\r\n");
+		string firstLine = requestLine.substr(0, i_endline);
+		string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
+
+		//I exaggerated strtok can be better for multitoken split
+		char *c_firstLine = (char *)firstLine.c_str();
+		char *c_req = strtok(c_firstLine, " ");
+		char *reqURI = strtok(NULL, " ");
+		char *c_httpVersion = strtok(NULL, " ");
+
+		//check valid request
+		string req = c_req;
+		if (commands.find(req) == commands.end()) {
+			sendStatus(500);
+//			return;
+			continue;
+		}
+
+		string httpVersion = c_httpVersion;
+		if (httpVersion.compare("HTTP/1.1") != 0) {
+			sendStatus(500);
+			continue;
+		}
+
+		//check first character in URI is "/"
+		if (reqURI[0] != '/') {
+			if (VERBOSE)
+				fprintf(stderr, "[%d] S: (no preceding slash)\n", sock);
+			sendStatus(400);
+//			return;
+			continue;
+		}
+		requestURI = reqURI;
+
+		if (req.compare("GET") == 0) {
+//			if (VERBOSE)
+//				fprintf(stderr, "[%d] C: GET %s\n", sock, requestURI.c_str());
+			handleGET();
+		}
+		else if (req.compare("POST") == 0) {
+//			if (VERBOSE)
+//				fprintf(stderr, "[%d] C: POST %s\n", sock, requestURI.c_str());
+			//get body
+			int i_endheaders = notFirstLine.find("\r\n\r\n");
+			string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
+			handlePOST((char *)body.c_str());
+		}
+		else
+			sendStatus(501);
 	}
-	else if (req.compare("POST") == 0) {
-		if (VERBOSE)
-			fprintf(stderr, "[%d] C: POST %s\n", sock, requestURI.c_str());
-		//get body
-		int i_endheaders = notFirstLine.find("\r\n\r\n");
-		string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
-		handlePOST((char *)body.c_str());
-	}
-	else
-		sendStatus(501);
 	close(sock);
 }
 
