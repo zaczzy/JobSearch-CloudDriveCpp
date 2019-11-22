@@ -128,26 +128,53 @@ int createServerSocket(unsigned short port){
  * Create client socket. Make it reusable.
  */
 int createClientSocket(unsigned short port) {
-	int clntSock;
-	struct sockaddr_in servAddr;
+	int sockfd, connfd;
+	struct sockaddr_in servaddr, cli;
 
-	if ((clntSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		die("socket() failed", -1);
+	// socket create and varification
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd == -1) {
+		printf("socket creation failed...\n");
+		exit(0);
+	}
+	else
+		printf("Socket successfully created..\n");
+	bzero(&servaddr, sizeof(servaddr));
 
-	//Reusable
-	int enable = 1;
-	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-		die("setsockopt(SO_REUSEADDR) failed", clntSock);
-	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
-		die("setsockopt(SO_REUSEPORT) failed", clntSock);
+	// assign IP, PORT
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	servaddr.sin_port = htons(PORT);
 
-	memset(&servAddr, 0, sizeof(servAddr));
-	servAddr.sin_family= AF_INET;
-	servAddr.sin_addr.s_addr= inet_addr("127.0.0.1");
-	servAddr.sin_port= htons(port);
+	// connect the client socket to server socket
+	if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) {
+		printf("connection with the server failed...\n");
+		exit(0);
+	}
+	else
+		printf("connected to the server..\n");
 
-	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
-		die("connect failed", clntSock);
+
+//	int clntSock;
+//	struct sockaddr_in servAddr;
+//
+//	if ((clntSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+//		die("socket() failed", -1);
+//
+//	//Reusable
+//	int enable = 1;
+//	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+//		die("setsockopt(SO_REUSEADDR) failed", clntSock);
+//	if (setsockopt(clntSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
+//		die("setsockopt(SO_REUSEPORT) failed", clntSock);
+//
+//	memset(&servAddr, 0, sizeof(servAddr));
+//	servAddr.sin_family= AF_INET;
+//	servAddr.sin_addr.s_addr= inet_addr("127.0.0.1");
+//	servAddr.sin_port= htons(port);
+//
+//	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
+//		die("connect failed", clntSock);
 
 //  ADD username password
 //	AUTH username password
