@@ -110,6 +110,31 @@ bool delete_user(char* username, char* password)
     return SUCCESS;
 }
 
+bool auth_user(char* username, char* password)
+{
+    map_tablet::iterator itr;
+    
+    /** Check if this username exists */
+    if ((itr = tablet.find(std::string(username))) == tablet.end())
+    {
+        if (verbose)
+            printf("user %s doesn't exist\n", username);
+
+        return FAILURE;
+    }
+
+    /** verify password */
+    if (strncmp(itr->second.password.c_str(), password, strlen(itr->second.password.c_str())) == 0)
+    {
+        if (verbose)
+            printf("user authenticated\n");
+
+        return SUCCESS;
+    }
+
+    return FAILURE;
+}
+
 bool store_email(put_mail_request* request)
 {
     char* row = request->username;
@@ -408,6 +433,25 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "+OK user deleted", strlen("+OK user deleted"));
         else
             strncpy(message, "-ERR user not deleted", strlen("-ERR user not deleted"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+
+        return SUCCESS;
+    }
+    /** authenticate user command */
+    else if (strncmp(command, "auth", strlen("auth")) == 0 || strncmp(command, "AUTH", strlen("AUTH")) == 0)
+    {
+        char* username = strtok(command + strlen("delete"), " ");
+        char* password = strtok(NULL, " ");
+
+        bool res = auth_user(username, password);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK user authenticated", strlen("+OK user authenticated"));
+        else
+            strncpy(message, "-ERR user not authenticated", strlen("-ERR user not authenticated"));
 
         message[strlen(message)] = '\0';
 
