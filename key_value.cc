@@ -280,7 +280,9 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
         strncpy(response->email_id, request->email_id, strlen(request->email_id));
 
         // TODO: Check for index value greater than num_emails before using it
+        printf("getting email body for index: %d\n", request->index);
         strncpy(response->mail_body, content->body_list[request->index], strlen(content->body_list[request->index]));
+        response->mail_body_len = strlen(response->mail_body);
     }
     else /** column doesn't exist */
     {
