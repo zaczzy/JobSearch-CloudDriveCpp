@@ -336,12 +336,16 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		char *remember_str = strtok(NULL, delim);
 		string user = user_str + strlen("user=");
 		string pass = pass_str + strlen("pass=");
-		string remember = remember_str + strlen("remember=");
+		string remember = remember_str + strlen("adduser=");
 
 		if (remember.compare("") != 0) {
+			char buff[BUFF_SIZE];
 			string s_addCmd = "ADD " + user + " " + pass;
 			pthread_mutex_lock(&mutex_backendSock);
 			write(backendSock, s_addCmd.c_str(), s_addCmd.length());
+			read(backendSock, buff, sizeof(buff));
+			if (VERBOSE)
+				fprintf(stderr, "%s", buff);
 			pthread_mutex_unlock(&mutex_backendSock);
 			//redirect to login page
 			//TODO: add message stating account add successful
@@ -500,7 +504,7 @@ int main(int argc, char *argv[])
 
 	//Start serving
 	int servSock = createServerSocket(servPort);
-//	backendSock = createClientSocket(BACKEND_PORT);
+	backendSock = createClientSocket(BACKEND_PORT);
 	while (true) {
 		if (threads.size() > MAX_CLNT)
 			continue;
