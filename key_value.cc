@@ -164,10 +164,12 @@ bool store_email(put_mail_request* request)
         //content->num_emails++;
 
         char* mail_body = (char*)malloc(request->email_len * sizeof(char));
+
         email_header* mail_header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
         // TODO: Check NULL for  both header and body
 
         strncpy(mail_body, request->email_body, request->email_len);
+        printf("storing mail body : %s\n", mail_body);
         *mail_header = request->header;
 
         content->header_list.push_back(mail_header);
@@ -281,6 +283,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
 
         // TODO: Check for index value greater than num_emails before using it
         printf("getting email body for index: %d\n", request->index);
+        printf("sending email body: %s\n", content->body_list[request->index]);
         strncpy(response->mail_body, content->body_list[request->index], strlen(content->body_list[request->index]));
         response->mail_body_len = strlen(response->mail_body);
     }
