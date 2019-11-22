@@ -93,3 +93,23 @@ typedef struct
     char file_content[MAX_SIZE_FILE];
 }get_file_response;
 
+#pragma pack(1)
+typedef struct
+{
+    char prefix[9];     // Should be "mailbody"
+    char username[32];
+    char email_id[64];
+    uint64_t index;
+}get_mail_body_request;
+
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[9];     // Should be "mailbody"
+    char username[32];
+    char email_id[64];
+    uint64_t mail_body_len;
+    char mail_body[MAX_LEN_EMAIL_BODY];
+}get_mail_body_response;
+

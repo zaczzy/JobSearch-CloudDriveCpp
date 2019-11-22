@@ -130,10 +130,13 @@ bool store_email(put_mail_request* request)
     map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
     {
+        tablet_column* col = &(row_itr->second);
+        mail_content* content = (mail_content*)col->content;
+        
         /** Add the new email */
-        mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
+        //mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
         // TODO: Check NULL
-        content->num_emails++;
+        //content->num_emails++;
 
         char* mail_body = (char*)malloc(request->email_len * sizeof(char));
         email_header* mail_header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
@@ -144,9 +147,7 @@ bool store_email(put_mail_request* request)
 
         content->header_list.push_back(mail_header);
         content->body_list.push_back(mail_body);
-       
-        tablet_column* col = &(row_itr->second);
-        col->content = content;
+        content->num_emails++;
     }
     else /** Create a column with the given email ID */
     {
@@ -223,6 +224,49 @@ bool get_email_list(get_mail_request* request, get_mail_response* response)
    return SUCCESS; 
 }
 
+bool get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
+{
+    char* row = request->username;
+    char* column = request->email_id;
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        if(request->index < 0)
+            return FAILURE;
+
+        tablet_column* col = &(row_itr->second);
+        mail_content* content = (mail_content*)col->content;
+        
+        strncpy(response->prefix, request->prefix, strlen(request->prefix));
+        strncpy(response->username, request->username, strlen(request->username));
+        strncpy(response->email_id, request->email_id, strlen(request->email_id));
+
+        // TODO: Check for index value greater than num_emails before using it
+        strncpy(response->mail_body, content->body_list[request->index], strlen(content->body_list[request->index]));
+    }
+    else /** column doesn't exist */
+    {
+        if (verbose)
+            printf("no column with %s exists\n", column);
+        return FAILURE;
+    }
+    
+   return SUCCESS; 
+}
+
 bool get_file_data(get_file_request* request, get_file_response* response)
 {
     char* row = request->username;
@@ -244,7 +288,7 @@ bool get_file_data(get_file_request* request, get_file_response* response)
     if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
     {
         tablet_column* col = &(row_itr->second);
-        file_content* content = (file_content*)col;
+        file_content* content = (file_content*)col->content;
         
         response->file_len = content->file_len;
         strncpy(response->prefix, request->prefix, strlen(request->prefix));
@@ -454,7 +498,29 @@ bool process_command(char* command, int len, int fd)
 
         return SUCCESS;
     }
-    
+    /** get mail body command */
+    else if (strncmp(command, "mailbody", 8) == 0 || strncmp(command, "MAILBODY", 8) == 0)
+    {
+        get_mail_body_request* req = (get_mail_body_request*)command;
+        get_mail_body_response response;
+
+        /** Get the mail body */
+        bool res = get_mail_body(req, &response);
+        
+        if (res == SUCCESS)
+        {
+            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+        }
+        else
+        {
+            strncpy(message, "-ERR can't get mail body", strlen("-ERR can't get mail body"));
+            message[strlen(message)] = '\0';
+            send_msg_to_socket(message, strlen(message), fd);
+        }
+
+        return SUCCESS;
+
+    }
     else
     {
         printf("command: %s\n", command);

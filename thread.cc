@@ -40,6 +40,10 @@ void* read_commands(void* args)
             int ret;
             ret = read(*client_fd, buffer, sizeof(buffer));
 
+            if (ret == -1)
+            {
+                printf("error code : %s\n", strerror(errno));
+            }
             if (ret == 0)
             {
                 continue;

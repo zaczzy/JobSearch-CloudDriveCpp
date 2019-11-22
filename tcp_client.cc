@@ -19,7 +19,7 @@ void func(int sockfd)
         bzero(buff, sizeof(buff)); 
         read(sockfd, buff, sizeof(buff)); 
         printf("From Server : %s", buff); 
-    //for (;;) 
+    for (int i = 0; i < 3; i++) 
     { 
         bzero(buff, sizeof(buff)); 
 
@@ -52,7 +52,7 @@ void func(int sockfd)
         bzero(buff, sizeof(buff)); 
         bytes = read(sockfd, buff, sizeof(buff)); 
         printf("read %d bytes from Server : message: %s ", bytes, buff);
-        
+    }    
 
         printf("reading email from server\n");
         /** Get the email from server */
@@ -64,7 +64,7 @@ void func(int sockfd)
         strncpy(req.email_id, "ritika@gmail.com", strlen("ritika@gmail.com"));
         req.email_id[strlen(req.email_id)] = '\0';
         
-        bytes = write(sockfd, (char*)(&req), sizeof(get_mail_request)); 
+        int bytes = write(sockfd, (char*)(&req), sizeof(get_mail_request)); 
         printf("written %d bytes to server\n", bytes);
         
         /** Read the email from server */
@@ -87,7 +87,7 @@ void func(int sockfd)
             printf("date: %s\n", response->email_headers[i].date);
         }
          
-    } 
+     
 } 
   
 int main() 
