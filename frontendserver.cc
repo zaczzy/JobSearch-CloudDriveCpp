@@ -221,6 +221,7 @@ SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
 	loggedIn = false;
+	redirectTo = "/index.html";
 	commands = {
 		"GET",
 		"POST"
@@ -345,7 +346,14 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
  * Handle GET request
  */
 void SingleConnServerHTML::handleGET() {
+	//ignore favicons
+	if (requestURI.compare("/favicon.ico") == 0) {
+		sendStatus(200);
+		return;
+	}
+
 	if (!loggedIn) {
+		cerr << "UH OH " << requestURI << endl;
 		redirectTo = requestURI;
 		string HTML = readHTMLFromFile("templates/login.html");
 		sendStatus(200, HTML.length()); //possibly -4 length
@@ -372,6 +380,9 @@ void SingleConnServerHTML::handleGET() {
 		sendMsg(HTML);
 	}
 	else {
+		if (VERBOSE) {
+			fprintf(stderr, "NOT FOUND: %s\n", requestURI);
+		}
 		//Resource not found
 		sendStatus(404);
 	}
@@ -385,7 +396,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 	memset(buff, 0, sizeof(buff));
 	if (requestURI.compare("/handle_login") == 0) {
 		//parse login data e.g. user=michal&pass=p
-		char *delim = "&\n";
+		const char *delim = "&\n";
 		char *user_str = strtok(body, delim);
 		char *pass_str = strtok(NULL, delim);
 		char *adduser_str = strtok(NULL, delim);
@@ -452,16 +463,26 @@ void SingleConnServerHTML::backbone() {
 		if (shutdownFlag)
 			die("shutdown", sock);
 
-		if (read(sock, c_requestLine, sizeof(c_requestLine)) < -1)
+		int i = read(sock, c_requestLine, sizeof(c_requestLine));
+		//read() error
+		if (i < -1)
 			sendStatus(400);
+		//client closed connection
+		if (i == 0)
+			break;
 
 		if (VERBOSE)
-			fprintf(stderr, "[%d] C: %s\n", sock, c_requestLine);
+			fprintf(stderr, "[%d] C: |%s|\n", sock, c_requestLine);
 
 		//from strtok single character delimiter, modify in-place, char * hell to string paradise
 		string requestLine = c_requestLine;
+
+		if (requestLine.length() == 0)
+			continue;
+
 		int i_endline = requestLine.find("\r\n");
 		string firstLine = requestLine.substr(0, i_endline);
+		cerr << "shrug";
 		string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
 
 		//I exaggerated strtok can be better for multitoken split
