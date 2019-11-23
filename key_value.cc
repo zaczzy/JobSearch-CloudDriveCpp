@@ -488,7 +488,7 @@ bool process_command(char* command, int len, int fd)
     /** authenticate user command */
     else if (strncmp(command, "auth", strlen("auth")) == 0 || strncmp(command, "AUTH", strlen("AUTH")) == 0)
     {
-        char* username = strtok(command + strlen("delete"), " ");
+        char* username = strtok(command + strlen("auth"), " ");
         char* password = strtok(NULL, " ");
 
         bool res = auth_user(username, password);
