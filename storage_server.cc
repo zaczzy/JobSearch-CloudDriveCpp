@@ -26,6 +26,7 @@ volatile int fds[100];
 int client_count = 0;
 int server_fd;
 std::unordered_map<int, char*> server_addresses; 
+std::unordered_map<int, char*> server_group; 
 uint8_t total_servers = 0;
 uint8_t server_id;
 
@@ -79,6 +80,95 @@ void run_storage_server(char* ip_address, int port_no)
         /** Create a separate thread for communication */
         create_thread(client_fd);
     }
+}
+
+bool read_server_config_master(char* config_file, int group_no, int server_no, char* ip_address, int* port_no)
+{
+    /** Open config file */
+    FILE* file = fopen(config_file, "r");
+
+    if (file == NULL)
+    {
+        if (verbose)
+            printf("unable to open server config file\n");
+
+        return FAILURE;
+    }
+    
+    int line_no = 0, position_no = 0;
+    ssize_t ret;
+    char *line, *token;
+    size_t len = 0;
+    memset(ip_address, 0, IP_ADDRESS_LEN);
+    *port_no = 0;
+
+    while ((ret = getline(&line, &len, file)) != -1)
+    {
+        line_no++;
+
+        /** Check if the group no matches */
+        if (line_no == group_no)
+        {
+            token = strtok(line, ",");
+
+            while (token != NULL)
+            {
+                position_no++;
+                
+                /** Check if the server position no matches */
+                if (position_no == server_no)
+                {
+                    /** Save this server's configuration */
+                    int ip_len;
+                    char* ptr = token;
+
+                    while(*ptr != ':' && *ptr != '\0')
+                    {
+                        ip_len++;
+                        ptr++; 
+                    }
+
+                    if (ip_len > 0 && ip_len <= 32)
+                    {
+                        strncpy(ip_address, ptr, ip_len);
+                        *port_no = atoi(token + ip_len + 1);
+                    }
+                }
+                else
+                {
+                    /** Save configuration of other servers of this group */
+                    char *ip = (char*)malloc(32);
+                    int ip_len;
+                    char* ptr = token;
+
+                    while(*ptr != ':' && *ptr != '\0')
+                    {
+                        ip_len++;
+                        ptr++; 
+                    }
+
+                    if (ip_len > 0 && ip_len <= 32)
+                    {
+                        strncpy(ip, ptr, ip_len);
+                        int port_no = atoi(token + ip_len + 1);
+                        server_group.insert(std::make_pair(port_no, ip));
+                    }
+                }
+                total_servers++;
+
+                token = strtok(NULL, ",");
+            }
+        }
+        else
+        {
+            /** Save other group servers info, if needed */
+        }
+
+    }
+        if (verbose)
+            printf("total servers in group: %u\n", total_servers);
+
+    return SUCCESS;
 }
 
 bool read_server_config(char* config_file, int server_no, char* ip_address, int* port_no)
