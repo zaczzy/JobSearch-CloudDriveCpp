@@ -66,14 +66,22 @@ typedef struct
 }get_mail_response;
 
 #pragma pack(1)
+//typedef struct
+//{
+//    char prefix[8];     // Should be "putfile"
+//    char username[32];
+//    char filename[256];
+//    uint64_t file_len;
+//    char file_content[MAX_SIZE_FILE];
+//}put_file_request;
+
 typedef struct
 {
     char prefix[8];     // Should be "putfile"
     char username[32];
     char filename[256];
     uint64_t file_len;
-    char file_content[MAX_SIZE_FILE];
-}put_file_request;
+}put_file_metadata;
 
 #pragma pack(1)
 typedef struct
@@ -84,14 +92,22 @@ typedef struct
 }get_file_request;
 
 #pragma pack(1)
+//typedef struct
+//{
+//    char prefix[8];     // Should be "getfile"
+//    char username[32];
+//    char filename[256];
+//    uint64_t file_len;
+//    char file_content[MAX_SIZE_FILE];
+//}get_file_response;
+
 typedef struct
 {
     char prefix[8];     // Should be "getfile"
     char username[32];
     char filename[256];
     uint64_t file_len;
-    char file_content[MAX_SIZE_FILE];
-}get_file_response;
+}get_file_metadata;
 
 #pragma pack(1)
 typedef struct

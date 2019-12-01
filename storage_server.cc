@@ -104,6 +104,9 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
 
     while ((ret = getline(&line, &len, file)) != -1)
     {
+        /** Remove the next line char */
+        line[ret - 1] = '\0';
+
         line_no++;
 
         /** Check if the group no matches */
@@ -119,7 +122,7 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
                 if (position_no == server_no)
                 {
                     /** Save this server's configuration */
-                    int ip_len;
+                    int ip_len = 0;
                     char* ptr = token;
 
                     while(*ptr != ':' && *ptr != '\0')
@@ -130,15 +133,17 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
 
                     if (ip_len > 0 && ip_len <= 32)
                     {
-                        strncpy(ip_address, ptr, ip_len);
+                        strncpy(ip_address, token, ip_len);
                         *port_no = atoi(token + ip_len + 1);
+
+                        printf("this server ip address: %s port no: %d\n", ip_address, *port_no);
                     }
                 }
                 else
                 {
                     /** Save configuration of other servers of this group */
                     char *ip = (char*)malloc(32);
-                    int ip_len;
+                    int ip_len = 0;
                     char* ptr = token;
 
                     while(*ptr != ':' && *ptr != '\0')
@@ -149,9 +154,11 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
 
                     if (ip_len > 0 && ip_len <= 32)
                     {
-                        strncpy(ip, ptr, ip_len);
+                        strncpy(ip, token, ip_len);
                         int port_no = atoi(token + ip_len + 1);
                         server_group.insert(std::make_pair(port_no, ip));
+                        
+                        printf("other server ip address: %s port no: %d\n", ip, port_no);
                     }
                 }
                 total_servers++;
@@ -163,11 +170,11 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
         {
             /** Save other group servers info, if needed */
         }
-
     }
-        if (verbose)
-            printf("total servers in group: %u\n", total_servers);
 
+    if (verbose)
+        printf("total servers in group: %u\n", total_servers);
+    
     return SUCCESS;
 }
 
@@ -239,7 +246,7 @@ bool read_server_config(char* config_file, int server_no, char* ip_address, int*
     return SUCCESS;
 }
 
-void parse_args(int argc, char *argv[], char* config_file, int* server_no)
+void parse_args(int argc, char *argv[], char* config_file, int* group_no, int* server_no)
 {
     int opt;
 
@@ -272,7 +279,16 @@ void parse_args(int argc, char *argv[], char* config_file, int* server_no)
     strncpy(config_file, argv[optind], strlen(argv[optind]) + 1);
     optind++;
 
-    /** Read server line no */
+    /** Read group no */
+    if (optind >= argc)
+    {
+        if (verbose)
+            printf("no group no. specified\n");
+        exit(EXIT_FAILURE);    
+    }
+    *group_no = atoi(argv[optind++]);
+
+    /** Read server no */
     if (optind >= argc)
     {
         if (verbose)
@@ -292,12 +308,12 @@ int main(int argc, char *argv[])
     char ip_address[IP_ADDRESS_LEN];
     int server_port_no;
     char config_file[256];
-    int server_no;
+    int server_no, group_no;
 
-    parse_args(argc, argv, config_file, &server_no);
+    parse_args(argc, argv, config_file, &group_no, &server_no);
 
     /** Read ip address and port no from config file */
-    bool res = read_server_config(config_file, server_no, ip_address, &server_port_no);
+    bool res = read_server_config_master(config_file, group_no, server_no, ip_address, &server_port_no);
 
     if (res == FAILURE)
         exit(EXIT_FAILURE);

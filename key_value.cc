@@ -230,7 +230,7 @@ bool get_email_list(get_mail_request* request, get_mail_response* response)
         tablet_column* col = &(row_itr->second);
         mail_content* content = (mail_content*)col->content;
         
-        printf("num emails: %d header list size: %d mail list size: %d\n", content->num_emails, content->header_list.size(), content->body_list.size());
+        printf("num emails: %lu header list size: %lu mail list size: %lu\n", content->num_emails, content->header_list.size(), content->body_list.size());
         response->num_emails = content->header_list.size();
         strncpy(response->prefix, request->prefix, strlen(request->prefix));
         strncpy(response->username, request->username, strlen(request->username));
@@ -322,7 +322,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
         strncpy(response->email_id, request->email_id, strlen(request->email_id));
 
         // TODO: Check for index value greater than num_emails before using it
-        printf("getting email body for index: %d\n", request->index);
+        printf("getting email body for index: %lu\n", request->index);
         printf("sending email body: %s\n", content->body_list[request->index]);
         strncpy(response->mail_body, content->body_list[request->index], strlen(content->body_list[request->index]));
         response->mail_body_len = strlen(response->mail_body);
@@ -337,8 +337,9 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
    return SUCCESS; 
 }
 
-bool get_file_data(get_file_request* request, get_file_response* response)
+bool get_file_data(get_file_metadata* request, int fd)
 {
+    get_file_metadata response;
     char* row = request->username;
     char* column = request->filename;
 
@@ -360,12 +361,17 @@ bool get_file_data(get_file_request* request, get_file_response* response)
         tablet_column* col = &(row_itr->second);
         file_content* content = (file_content*)col->content;
         
-        response->file_len = content->file_len;
-        strncpy(response->prefix, request->prefix, strlen(request->prefix));
-        strncpy(response->username, request->username, strlen(request->username));
-        strncpy(response->filename, request->filename, strlen(request->filename));
+        response.file_len = content->file_len;
+        strncpy(response.prefix, request->prefix, strlen(request->prefix));
+        strncpy(response.username, request->username, strlen(request->username));
+        strncpy(response.filename, request->filename, strlen(request->filename));
 
-        strncpy(response->file_content, content->file_data, content->file_len);
+        /** Send the metadata first */
+        send_msg_to_socket((char*)(&response), sizeof(response), fd);
+
+
+        /** Send the file content now */
+        send_msg_to_socket(content->file_data, content->file_len, fd);
     }
     else /** column doesn't exist */
     {
@@ -377,7 +383,7 @@ bool get_file_data(get_file_request* request, get_file_response* response)
    return SUCCESS; 
 }
 
-bool store_file(put_file_request* request)
+bool store_file(put_file_metadata* request, int fd)
 {
     char* row = request->username;
     char* column = request->filename;
@@ -414,7 +420,13 @@ bool store_file(put_file_request* request)
 
         char* data = (char*)malloc(request->file_len * sizeof(char));
         // TODO: Check NULL
-        strncpy(data, request->file_content, request->file_len);
+        
+        /** Read the data */
+        unsigned int len_read = 0;
+        while (len_read != request->file_len)
+        {
+            len_read += read(fd, data, request->file_len - len_read);
+        }
 
         content->file_len = request->file_len;
         content->file_data = data;
@@ -432,7 +444,7 @@ bool store_file(put_file_request* request)
 
 bool process_command(char* command, int len, int fd)
 {
-    char message[64];
+    char message[64] = {0};
 
     //printf("command: %s len: %d\n", command, len);
 
@@ -549,10 +561,10 @@ bool process_command(char* command, int len, int fd)
     /** put file command */
     else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
     {
-        put_file_request* file_request = (put_file_request*)command;
+        put_file_metadata* file_request = (put_file_metadata*)command;
 
         /** Store the new file */
-        bool res = store_file(file_request);
+        bool res = store_file(file_request, fd);
         
         if (res == SUCCESS)
             strncpy(message, "+OK file stored", strlen("+OK file stored"));
@@ -568,17 +580,12 @@ bool process_command(char* command, int len, int fd)
     /** get file command */
     else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
     {
-        get_file_request* file_request = (get_file_request*)command;
-        get_file_response response;
+        get_file_metadata* file_request = (get_file_metadata*)command;
 
         /** Get file data */
-        bool res = get_file_data(file_request, &response);
+        bool res = get_file_data(file_request, fd);
 
-        if (res == SUCCESS)
-        {
-            send_msg_to_socket((char*)(&response), sizeof(response), fd);
-        }
-        else
+        if (res != SUCCESS)
         {
             strncpy(message, "-ERR can't get file", strlen("-ERR can't get file"));
             message[strlen(message)] = '\0';
