@@ -160,6 +160,7 @@ bool store_email(put_mail_request* request)
 
     /** Generate the ID for this email */
     unsigned long email_id = ++(itr->second.num_emails);
+    printf("num emails: %lu\n", itr->second.num_emails);
     char email_id_str[21];  /** Max. no of digits in an unsigned long number is 20 */
     sprintf(email_id_str, "%lu", email_id);
 
@@ -378,6 +379,7 @@ bool delete_mail(delete_mail_request* request)
     map_tablet_row:: iterator row_itr;
     if ((row_itr = itr->second.columns.find(std::string(email_id_str))) != itr->second.columns.end())
     {
+        itr->second.num_emails--;
         itr->second.columns.erase(row_itr);
     }
     else /** email id doesn't exist */
@@ -463,7 +465,6 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
         response->email_id = request->email_id;
 
         // TODO: Check for index value greater than num_emails before using it
-        printf("sending email body: %s\n", content->email_body);
         strncpy(response->mail_body, content->email_body, strlen(content->email_body));
         response->mail_body_len = strlen(response->mail_body);
     }
@@ -707,7 +708,8 @@ bool process_command(char* command, int len, int fd)
     /** put email command */
     else if (strncmp(command, "putmail", 7) == 0 || strncmp(command, "PUTMAIL", 7) == 0)
     {
-        printf("putmil request\n");
+        if (verbose)
+            printf("putmail request\n");
         put_mail_request* mail_request = (put_mail_request*)command;
 
         /** Store the new mail */
@@ -727,6 +729,8 @@ bool process_command(char* command, int len, int fd)
     /** get email list command */
     else if (strncmp(command, "getmail", 7) == 0 || strncmp(command, "GETMAIL", 7) == 0)
     {
+        if (verbose)
+            printf("get email list request\n");
         get_mail_request* mail_request = (get_mail_request*)command;
         get_mail_response response;
 
@@ -735,7 +739,7 @@ bool process_command(char* command, int len, int fd)
 
         if (res == SUCCESS)
         {
-            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+            send_msg_to_socket((char*)(&response), sizeof(get_mail_response), fd);
         }
         else
         {
@@ -785,6 +789,8 @@ bool process_command(char* command, int len, int fd)
     /** get mail body command */
     else if (strncmp(command, "mailbody", 8) == 0 || strncmp(command, "MAILBODY", 8) == 0)
     {
+        if (verbose)
+            printf("get email body request\n");
         get_mail_body_request* req = (get_mail_body_request*)command;
         get_mail_body_response response;
 
@@ -793,7 +799,7 @@ bool process_command(char* command, int len, int fd)
         
         if (res == SUCCESS)
         {
-            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+            send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
         }
         else
         {
@@ -808,6 +814,8 @@ bool process_command(char* command, int len, int fd)
     /** delete mail command */
     else if (strncmp(command, "delmail", 8) == 0 || strncmp(command, "DELMAIL", 8) == 0)
     {
+        if (verbose)
+            printf("delete email request\n");
         delete_mail_request* req = (delete_mail_request*)command;
 
         /** Delete mail */
@@ -830,7 +838,8 @@ bool process_command(char* command, int len, int fd)
     }
     else
     {
-        printf("command: %s\n", command);
+        if (verbose)
+            printf("command: %s\n", command);
         strncpy(message, "-ERR unknown command", strlen("-ERR unknown command"));
 
         message[strlen(message)] = '\0';

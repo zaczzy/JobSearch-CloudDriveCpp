@@ -65,7 +65,7 @@ typedef struct
     email_header email_headers[MAX_EMAILS];
 }get_mail_response;
 
-#pragma pack(1)
+//#pragma pack(1)
 //typedef struct
 //{
 //    char prefix[8];     // Should be "putfile"
@@ -75,6 +75,7 @@ typedef struct
 //    char file_content[MAX_SIZE_FILE];
 //}put_file_request;
 
+#pragma pack(1)
 typedef struct
 {
     char prefix[8];     // Should be "putfile"
@@ -91,7 +92,7 @@ typedef struct
     char filename[256];
 }get_file_request;
 
-#pragma pack(1)
+//#pragma pack(1)
 //typedef struct
 //{
 //    char prefix[8];     // Should be "getfile"
@@ -101,6 +102,7 @@ typedef struct
 //    char file_content[MAX_SIZE_FILE];
 //}get_file_response;
 
+#pragma pack(1)
 typedef struct
 {
     char prefix[8];     // Should be "getfile"
