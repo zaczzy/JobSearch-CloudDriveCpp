@@ -28,9 +28,12 @@ public:
 
 typedef struct
 {
-    uint64_t num_emails;
-    std::vector<email_header*> header_list;
-    std::vector<char*> body_list;
+    //uint64_t num_emails;
+    unsigned long email_id;
+    email_header* header;
+    char* email_body;
+    //std::vector<email_header*> header_list;
+    //std::vector<char*> body_list;
 }mail_content;
 
 // TODO: For later use
@@ -57,6 +60,8 @@ typedef struct
 {
     std::string email_id;
     std::string password;
+    unsigned long num_emails;
+    unsigned long num_files;
     map_tablet_row columns;
 }tablet_row;
 
@@ -83,6 +88,8 @@ bool add_user(char* username, char* password)
     /** Add a new user with this username and password */
     tablet_row row;
     row.password = std::string(password);
+    row.num_emails = 0;
+    row.num_files = 0;
 
     if (verbose)
         printf("Added user %s\n", username);
@@ -135,6 +142,52 @@ bool auth_user(char* username, char* password)
     return FAILURE;
 }
 
+#if 1
+bool store_email(put_mail_request* request)
+{
+    char* row = request->username;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** Generate the ID for this email */
+    unsigned long email_id = ++(itr->second.num_emails);
+    char email_id_str[21];  /** Max. no of digits in an unsigned long number is 20 */
+    sprintf(email_id_str, "%lu", email_id);
+
+    /** Add a column for this email */
+    tablet_column col;
+    col.type = MAIL;
+
+    mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
+    // TODO: Check NULL
+
+    content->email_body = (char*)malloc(request->email_len * sizeof(char));
+    content->header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
+    // TODO: Check NULL
+    strncpy(content->email_body, request->email_body, request->email_len);
+    *(content->header) = request->header;
+    content->email_id = email_id;
+
+    col.content = content; 
+    /** Add the entry to the map */
+    itr->second.columns.insert(std::make_pair(std::string(email_id_str), col));
+
+    if (verbose)
+        printf("Added email id %lu to row %s\n", email_id, row);
+    
+    return SUCCESS;
+}
+
+#else
 bool store_email(put_mail_request* request)
 {
     char* row = request->username;
@@ -157,7 +210,7 @@ bool store_email(put_mail_request* request)
     {
         tablet_column* col = &(row_itr->second);
         mail_content* content = (mail_content*)col->content;
-        
+
         /** Add the new email */
         //mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
         // TODO: Check NULL
@@ -202,10 +255,60 @@ bool store_email(put_mail_request* request)
         if (verbose)
             printf("Added column %s to row %s\n", column, row);
     }
-
     return SUCCESS;
 }
+#endif
 
+#if 1
+bool get_email_list(get_mail_request* request, get_mail_response* response)
+{
+    char* row = request->username;
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+    unsigned long num_emails = itr->second.num_emails;
+
+    if (num_emails == 0)
+    {
+        response->num_emails = 0;
+        strncpy(response->prefix, request->prefix, strlen(request->prefix));
+        strncpy(response->username, request->username, strlen(request->username));
+
+        return SUCCESS;
+    }
+
+    /** Traverse through all the columns and return all the email headers found */
+    map_tablet_row::iterator col_itr = itr->second.columns.begin();
+
+    int email_ctr = 0;
+    while(col_itr != itr->second.columns.end())
+    {
+        /** Check if this column contains an email or a file */
+        if (col_itr->second.type == MAIL)
+        {
+            mail_content* content = (mail_content*)col_itr->second.content; 
+            response->email_headers[email_ctr] = *content->header;
+            email_ctr++;
+        }
+        col_itr++;
+    }
+
+    response->num_emails = num_emails;
+    strncpy(response->prefix, request->prefix, strlen(request->prefix));
+    strncpy(response->username, request->username, strlen(request->username));
+    
+   return SUCCESS; 
+}
+
+#else
 bool get_email_list(get_mail_request* request, get_mail_response* response)
 {
     char* row = request->username;
@@ -250,7 +353,43 @@ bool get_email_list(get_mail_request* request, get_mail_response* response)
     
    return SUCCESS; 
 }
+#endif
 
+#if 1
+bool delete_mail(delete_mail_request* request)
+{
+    char* row = request->username;
+    unsigned long email_id = request->email_id;
+
+    map_tablet::iterator itr;
+
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** check if this email_id  exists */
+    char email_id_str[21];  /** Max. no of digits in an unsigned long number is 20 */
+    sprintf(email_id_str, "%lu", email_id);
+    map_tablet_row:: iterator row_itr;
+    if ((row_itr = itr->second.columns.find(std::string(email_id_str))) != itr->second.columns.end())
+    {
+        itr->second.columns.erase(row_itr);
+    }
+    else /** email id doesn't exist */
+    {
+        if (verbose)
+            printf("no email with id %lu exists\n", email_id);
+        return FAILURE;
+    }
+
+   return SUCCESS;
+}
+#else
 bool delete_mail(delete_mail_request* request)
 {
     char* row = request->username;
@@ -290,7 +429,55 @@ bool delete_mail(delete_mail_request* request)
     
    return SUCCESS; 
 }
+#endif
 
+#if 1
+bool get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
+{
+    char* row = request->username;
+    unsigned long email_id = request->email_id;
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return FAILURE;
+    }
+
+    /** check if this email id exists */
+    char email_id_str[21];  /** Max. no of digits in an unsigned long number is 20 */
+    sprintf(email_id_str, "%lu", email_id);
+
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(email_id_str))) != itr->second.columns.end())
+    {
+        tablet_column* col = &(row_itr->second);
+        mail_content* content = (mail_content*)col->content;
+        
+        strncpy(response->prefix, request->prefix, strlen(request->prefix));
+        strncpy(response->username, request->username, strlen(request->username));
+        response->email_id = request->email_id;
+
+        // TODO: Check for index value greater than num_emails before using it
+        printf("sending email body: %s\n", content->email_body);
+        strncpy(response->mail_body, content->email_body, strlen(content->email_body));
+        response->mail_body_len = strlen(response->mail_body);
+    }
+    else /** column doesn't exist */
+    {
+        if (verbose)
+            printf("no email with id %lu  exists\n", email_id);
+        return FAILURE;
+    }
+    
+   return SUCCESS; 
+}
+
+#else
 bool get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
 {
     char* row = request->username;
@@ -336,6 +523,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
     
    return SUCCESS; 
 }
+#endif
 
 bool get_file_data(get_file_metadata* request, int fd)
 {

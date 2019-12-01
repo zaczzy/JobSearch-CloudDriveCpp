@@ -41,7 +41,7 @@ typedef struct
 {
     char prefix[8];     // Should be "putmail"
     char username[32];
-    char email_id[64];
+    //char email_id[64];
     email_header header;
     uint64_t email_len;
     char email_body[MAX_LEN_EMAIL_BODY];
@@ -52,7 +52,7 @@ typedef struct
 {
     char prefix[8];     // Should be "getmail""
     char username[32];
-    char email_id[64];
+    //char email_id[64];
 }get_mail_request;
 
 #pragma pack(1)
@@ -60,7 +60,7 @@ typedef struct
 {
     char prefix[8];     // Should be "getmail""
     char username[32];
-    char email_id[64];
+    //char email_id[64];
     uint64_t num_emails;
     email_header email_headers[MAX_EMAILS];
 }get_mail_response;
@@ -114,8 +114,9 @@ typedef struct
 {
     char prefix[9];     // Should be "mailbody"
     char username[32];
-    char email_id[64];
-    uint64_t index;
+    unsigned long email_id;
+    //char email_id[64];
+    //uint64_t index;
 }get_mail_body_request;
 
 
@@ -124,7 +125,8 @@ typedef struct
 {
     char prefix[9];     // Should be "mailbody"
     char username[32];
-    char email_id[64];
+    unsigned long email_id;
+    //char email_id[64];
     uint64_t mail_body_len;
     char mail_body[MAX_LEN_EMAIL_BODY];
 }get_mail_body_response;
@@ -134,7 +136,8 @@ typedef struct
 {
     char prefix[8];     // Should be "delmail"
     char username[32];
-    char email_id[64];
-    uint64_t index;
+    unsigned long email_id;
+    //char email_id[64];
+    //uint64_t index;
 }delete_mail_request;
 
