@@ -25,7 +25,7 @@ socklen_t sin_length = sizeof(struct sockaddr_in);
 char log_message[100];
 int log_to_terminal = 0;
 FILE *log_file = NULL;
-char *user = "john";
+char *user = "michal";
 char email_msg[1000];
 char rcpt_to[100];
 int msg_len = 0;
@@ -94,12 +94,16 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
       
       if(state == 0) {
         if(!strcasecmp(cmd0, "INBOX")) {
-          //Retrieve user inbox
+          /*Retrieve user inbox */
            char response[1000];
-           printf("250 OK Enter User email\n");
-           state = 4;
+           printf("250 OK\n");
+           webserver_core(0, user, -1, NULL, NULL, response, server_fd);
+           state = 0;
+
           // send(server_fd, response, strlen(response), 0);
         } else if(!strcasecmp(cmd0, "READ")) {
+              /*Read email for current user */
+
              char *cmd1 = strtok(NULL, "\x0A");
               if(cmd1 == NULL) {
                 printf("500 ERR: Invalid command\n");
@@ -109,23 +113,30 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               email_index = atoi(cmd1); 
               char response[1000];
   
-              state = 5;
+              printf("250 OK\n");
+              webserver_core(1, user, email_index, NULL, NULL, response, server_fd);
+              email_index = 0 ;
+              state = 0;
+
             //  send(server_fd, response, strlen(response), 0);
-              //Read email for user with email id email_id
   
         } else if(!strcasecmp(cmd0, "DELETE")) {
+              /*Delete email for current user*/
+
              char *cmd1 = strtok(NULL, "\x0A");
               if(cmd1 == NULL) {
-                printf("Invalid command\n");
                 printf("500 ERR: Invalid command\n");
                 return;
                }
               
-              int email_id = atoi(cmd1); 
-              //printf("250 OK Delete email id:%d\n", email_id);
+              email_index = atoi(cmd1); 
+              char response[1000];
               printf("250 OK\n");
-              webserver_core(3, user, email_id, NULL, NULL, NULL, server_fd);
-              //Delete email for user with email id email_id
+              webserver_core(3, user, email_index, NULL, NULL, NULL, server_fd);
+              email_index = 0 ;
+              state = 0;
+
+              //printf("250 OK Delete email id:%d\n", email_id);
   
         } else if(!strcasecmp(cmd0, "SEND")) {
               printf("250 OK\n");
@@ -179,43 +190,18 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
             printf("250 OK DATA");
             email_msg[msg_len] = '\0';
             webserver_core(2, user, -1, email_msg, rcpt_to, NULL, server_fd);  
+            printf("%s\n", email_msg);
             memset(email_msg, 0, sizeof(email_msg));
             memset(rcpt_to, 0, sizeof(rcpt_to));
             msg_len = 0;
             state = 0;
+            return;
           }
            
           strcpy(email_msg + msg_len, cmd0);
           msg_len += strlen(lineptr);
   
-      } else if(state == 4) {
-
-        if(!strcasecmp(cmd0, "rcpt_to")) {
-            //Validate user
-            char *tmp = strtok(NULL, "\x0A");
-            char response[1000];
-            memcpy(rcpt_to, tmp, strlen(tmp));
-            printf("250 OK\n");
-            webserver_core(0, user, -1, NULL, rcpt_to, response, server_fd);
-            memset(rcpt_to, 0, sizeof(rcpt_to));
-            state = 0;
-        }
-
-      } else if(state == 5) {
-
-        if(!strcasecmp(cmd0, "rcpt_to")) {
-            //Validate user
-            char *tmp = strtok(NULL, "\x0A");
-            char response[1000];
-            memcpy(rcpt_to, tmp, strlen(tmp));
-            printf("250 OK\n");
-            webserver_core(1, user, email_index, NULL, rcpt_to, response, server_fd);
-            memset(rcpt_to, 0, sizeof(rcpt_to));
-            email_index = 0 ;
-            state = 0;
-        }
-
-      }
+      } 
 
       /*
 
@@ -235,7 +221,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
       else  
         perror("");
     }
-
+  return;
 }
 
 //Socket creation

@@ -1,9 +1,13 @@
-TARGETS = echoserver mailclient
+TARGETS = mailclient storage_server
 OBJS_POP3 = pop3_thread.o pop3.o
 OBJS_SMTP = smtp_thread.o smtp.o
 CC=g++
+CFLAGS=-std=c++11 -lpthread
 
 all: $(TARGETS)
+
+storage_server: storage_server.cc socket.cc thread.cc key_value.cc
+	$(CC) $^ $(CFLAGS) -o $@
 
 echoserver: echothread.o echoserver.o
 	$(CC) $^ -lpthread -o $@
