@@ -203,7 +203,7 @@ private:
 	int sendMsg(string msg);
 	void sendStatus(int statusCode);
 	void sendHeaders(int length);
-	void handleGET();
+	void handleGET(bool HEAD);
 	void handlePOST(char *body);
 	void splitHeaderBody(string input, vector<string> *header_list, string *body);
 
@@ -369,7 +369,7 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 /*
  * Handle GET request
  */
-void SingleConnServerHTML::handleGET() {
+void SingleConnServerHTML::handleGET(bool HEAD = false) {
 	//ignore favicons
 	if (requestURI.compare("/favicon.ico") == 0) {
 		sendStatus(200);
@@ -385,28 +385,22 @@ void SingleConnServerHTML::handleGET() {
 		return;
 	}
 
-	if (requestURI.compare("/index.html") == 0 || requestURI.compare("/") == 0) {
-		//read from templates/index.html
-		string HTML = readHTMLFromFile("templates/index.html");
-		//send OK and headers
-		sendHeaders(HTML.length());
-		//serve landing page
-		sendMsg(HTML);
-	}
-	else if (requestURI.compare("/mail.html") == 0) {
-		string HTML = readHTMLFromFile("templates/mail.html");
-		sendHeaders(HTML.length());
-		sendMsg(HTML);
-	}
-	else if (requestURI.compare("/storage.html") == 0) {
-		string HTML = readHTMLFromFile("templates/storage.html");
-		sendHeaders(HTML.length());
-		sendMsg(HTML);
-	}
+	string HTML;
+	if (requestURI.compare("/index.html") == 0 || requestURI.compare("/") == 0)
+		HTML = readHTMLFromFile("templates/index.html");
+	else if (requestURI.compare("/mail.html") == 0)
+		HTML = readHTMLFromFile("templates/mail.html");
+	else if (requestURI.compare("/storage.html") == 0)
+		HTML = readHTMLFromFile("templates/storage.html");
 	else {
 		//Resource not found
 		sendStatus(404);
+		return;
 	}
+
+	sendHeaders(HTML.length());
+	if (!HEAD)
+		sendMsg(HTML);
 }
 
 /*
@@ -585,6 +579,9 @@ void SingleConnServerHTML::backbone() {
 //			int i_endheaders = notFirstLine.find("\r\n\r\n");
 //			string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
 			handlePOST((char *)body.c_str());
+		}
+		else if (req.compare("HEAD") == 0) {
+			handleGET(true);
 		}
 		else
 			sendStatus(501);
