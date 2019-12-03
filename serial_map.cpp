@@ -1,5 +1,5 @@
 #include <unordered_map>
-#include <sstream>
+#include <fstream>
 #include  <iostream>
 #include <boost/serialization/map.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -14,6 +14,7 @@ typedef struct
 {
     int a;
     int b;
+   std::unordered_map<int, std::string> second_map;
    
     friend class boost::serialization::access;
    template<class Archive>
@@ -22,6 +23,7 @@ typedef struct
        // Simply list all the fields to be serialized/deserialized.
        ar & a;
        ar & b;
+       ar & second_map;
    }
 }test;
 
@@ -30,25 +32,33 @@ int main()
     test t1;
     t1.a = 5;
     t1.b = 10;
+    t1.second_map.insert(std::make_pair(15, "ritika"));
     test t2;
     t2.a = 15;
     t2.b = 20;
+    t2.second_map.insert(std::make_pair(15, "gupta"));
    std::unordered_map<int, test> my_map;
 
    int key1 = 1, key2 = 2;
    my_map.insert(std::make_pair(key1, t1));
    my_map.insert(std::make_pair(key2, t2));
 
-   //serializable_class my_class;
-   //my_class.my_map = my_map;
-   std::stringstream ss;
-   boost::archive::text_oarchive oarch(ss);
-   oarch << my_map;
+   std::ofstream ofs("myfile.txt");
+   boost::archive::text_oarchive oa(ofs);
+   oa << my_map;
+   ofs.close();
+
    std::unordered_map<int, test> new_map;
-   boost::archive::text_iarchive iarch(ss);
-   iarch >> new_map;
-   //std::cout << (my_map == new_map) << std::endl;
+   std::ifstream ifs("myfile.txt");
+   boost::archive::text_iarchive ia(ifs);
+   ia >> new_map;
 
    for (std::unordered_map<int,test>::iterator it=new_map.begin(); it!=new_map.end(); ++it)
+   {
         printf("t1.a = %d t1.b = %d int: %d\n", it->second.a, it->second.b, it->first);
+
+        std::unordered_map<int, std::string>::iterator itr;
+        for(itr = it->second.second_map.begin(); itr != it->second.second_map.end(); itr++)
+            printf("second map: %d %s\n", itr->first, itr->second.c_str());
+   }
 }
