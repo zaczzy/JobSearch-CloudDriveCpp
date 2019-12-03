@@ -29,16 +29,9 @@ bool VERBOSE = false;
 bool shutdownFlag = false;
 int backendSock = -1;
 pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_cookieRelay = PTHREAD_MUTEX_INITIALIZER;
 map<string, pthread_mutex_t> locks;
 set<pthread_t> threads;
-
-/*
- * Struct for passing multiple parameters to threadFunc()
- */
-struct thread_struct {
-    int clntSock;
-    string webroot;
-};
 
 /*
  * Struct for passing request params
@@ -191,11 +184,58 @@ int createClientSocket(unsigned short port) {
 }
 
 /*
+ * Tracks cookies (single front-end server scenario).
+ * Later the public methods will connect to load balancer
+ * to fetch and return the data instead of storing local state.
+ * SingleConnServerHTML won't know the difference.
+ */
+class CookieRelay {
+public:
+	CookieRelay();
+	~CookieRelay();
+	int genCookie(string browser);
+	string fetchBrowser(int cookie);
+private:
+	int latestCookie;
+	map<int, string> cookie2Browser;
+};
+
+/*
+ * Constructor
+ */
+CookieRelay::CookieRelay() {
+	latestCookie = -1;
+}
+
+/*
+ * Destructor
+ */
+CookieRelay::~CookieRelay() {
+
+}
+
+/*
+ * Generate a cookie for a new browser
+ */
+int CookieRelay::genCookie(string browser) {
+	//race condition?? hopefully not
+	cookie2Browser[++latestCookie] = browser;
+	return latestCookie;
+}
+
+/*
+ * Fetch a browser using an existing cookie
+ */
+string CookieRelay::fetchBrowser(int cookie) {
+	return cookie2Browser[cookie];
+}
+
+/*
  * Handles HTML service with one client.
  */
 class SingleConnServerHTML {
 public:
-	SingleConnServerHTML(int sock, string webroot);
+	SingleConnServerHTML(int sock, string webroot, CookieRelay *CR);
 	~SingleConnServerHTML();
 	void backbone();
 private:
@@ -210,7 +250,8 @@ private:
 	int sock;
 	string webroot;
 	string requestURI;
-	bool loggedIn;
+	string username;
+	CookieRelay *CR;
 	bool sendCookie;
 	int cookieValue;
 	string redirectTo; //the page a user attempts to visit before redirected to login
@@ -221,12 +262,11 @@ private:
 /*
  * Constructor
  */
-SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
-	sock(sock), webroot(webroot) {
+SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot, CookieRelay *CR):
+	sock(sock), webroot(webroot), CR(CR) {
 	requestURI = "";
-	loggedIn = false;
 	sendCookie = false;
-	cookieValue = 0;
+	cookieValue = -1;
 	redirectTo = "/index.html";
 	commands = {
 		"GET",
@@ -260,6 +300,9 @@ SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	};
 }
 
+/*
+ * Destructor
+ */
 SingleConnServerHTML::~SingleConnServerHTML() {
 
 }
@@ -323,7 +366,6 @@ void SingleConnServerHTML::sendHeaders(int length = 0) {
 	if (sendCookie) {
 		statusLine += "Set-Cookie: name=" + to_string(cookieValue) + "\r\n";
 		sendCookie = false;
-//		cookieValue++;
 	}
 	statusLine += "\r\n";
 
@@ -376,7 +418,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		return;
 	}
 
-	if (!loggedIn) {
+	if (cookieValue == -1) {
 		cerr << "UH OH " << requestURI << endl;
 		redirectTo = requestURI;
 		string HTML = readHTMLFromFile("templates/login.html");
@@ -386,7 +428,10 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 	}
 
 	string HTML;
-	if (requestURI.compare("/index.html") == 0 || requestURI.compare("/") == 0)
+	//(if logged in, redirect login.html to index.html)
+	if (requestURI.compare("/index.html") == 0 ||
+			requestURI.compare("/") == 0 ||
+			requestURI.compare("/login.html") == 0)
 		HTML = readHTMLFromFile("templates/index.html");
 	else if (requestURI.compare("/mail.html") == 0)
 		HTML = readHTMLFromFile("templates/mail.html");
@@ -438,6 +483,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		string s_authCmd = "AUTH " + user + " " + pass;
 		string authResult = sendCommand(s_authCmd);
 		string okerr = authResult.substr(0,3);
+		//if invalid credentials
 		if (authResult.substr(0,3).compare("+OK") != 0) {
 			cout << "HI" << endl;
 
@@ -451,8 +497,11 @@ void SingleConnServerHTML::handlePOST(char *body) {
 			return;
 		}
 
-		loggedIn = true;
 		sendCookie = true;
+		username = user;
+		pthread_mutex_lock(&mutex_cookieRelay);
+		cookieValue = CR->genCookie(username);
+		pthread_mutex_unlock(&mutex_cookieRelay);
 		requestURI = redirectTo;
 		redirectTo = "";
 		handleGET();
@@ -512,17 +561,10 @@ void SingleConnServerHTML::backbone() {
 		//from strtok single character delimiter, modify in-place, char * hell to string paradise
 		string requestLine = c_requestLine;
 
-//		if (requestLine.length() == 0)
-//			continue;
-
 		vector<string> headers;
 		string body;
 		splitHeaderBody(requestLine, &headers, &body);
 		string firstLine = headers[0];
-
-//		int i_endline = requestLine.find("\r\n");
-//		string firstLine = requestLine.substr(0, i_endline);
-//		string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
 
 		//I exaggerated strtok can be better for multitoken split
 		char *c_firstLine = (char *)firstLine.c_str();
@@ -557,27 +599,45 @@ void SingleConnServerHTML::backbone() {
 		requestURI = reqURI;
 
 		//check cookie
-		if (loggedIn) {
-			int receivedCookie;
-			for (string header: headers) {
-				if (header.find("Cookie: ") == 0) {
-					receivedCookie = stoi(header.substr(strlen("Cookie: name=")));
-					break;
-				}
+		int receivedCookie = -1;
+		for (string header: headers) {
+			if (header.find("Cookie: ") == 0) {
+				receivedCookie = stoi(header.substr(strlen("Cookie: name=")));
+				break;
 			}
+		}
+		//existing cookie, existing connection
+		if (receivedCookie != -1 && cookieValue != -1) {
+			//check matching cookies
 			if (receivedCookie != cookieValue) {
 				sendStatus(401);
 				continue;
 			}
 		}
+		//existing cookie, new connection
+		else if (receivedCookie != -1 && cookieValue == -1) {
+			//login automatically
+			pthread_mutex_lock(&mutex_cookieRelay);
+			username = CR->fetchBrowser(cookieValue);
+			cookieValue = CR->genCookie(username);
+			pthread_mutex_unlock(&mutex_cookieRelay);
+		}
+		//no cookie, existing connection
+		else if (receivedCookie == -1 && cookieValue != -1) {
+			//logout scenario
+			//possibly unnecessary to handle here,
+			//if logout is handled properly elsewhere
+		}
+		//no cookie, new connection
+		else if (receivedCookie == -1 && cookieValue == -1) {
+			//standard case; just proceed
+		}
+
 
 		if (req.compare("GET") == 0) {
 			handleGET();
 		}
 		else if (req.compare("POST") == 0) {
-			//get body
-//			int i_endheaders = notFirstLine.find("\r\n\r\n");
-//			string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
 			handlePOST((char *)body.c_str());
 		}
 		else if (req.compare("HEAD") == 0) {
@@ -590,6 +650,15 @@ void SingleConnServerHTML::backbone() {
 }
 
 /*
+ * Struct for passing multiple parameters to threadFunc()
+ */
+struct thread_struct {
+    int clntSock;
+    string webroot;
+    CookieRelay *CR;
+};
+
+/*
  * Callback from main thread upon initialization of worker thread.
  * Initializes a SingleConnServerHTML
  */
@@ -597,8 +666,9 @@ void *threadFunc(void *args){
 	struct thread_struct *a = (struct thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
 	string webroot = (string)(a->webroot);
+	CookieRelay *CR = (CookieRelay *)(a->CR);
 
-	SingleConnServerHTML S(clntSock, webroot);
+	SingleConnServerHTML S(clntSock, webroot, CR);
 	S.backbone();
 }
 
@@ -642,6 +712,7 @@ int main(int argc, char *argv[])
 	//Start serving
 	int servSock = createServerSocket(servPort);
 	backendSock = createClientSocket(BACKEND_PORT);
+	CookieRelay CR;
 	while (true) {
 		if (threads.size() > MAX_CLNT)
 			continue;
@@ -656,6 +727,7 @@ int main(int argc, char *argv[])
 		struct thread_struct args;
 		args.clntSock = clntSock;
 		args.webroot = webroot;
+		args.CR = &CR;
 
 		pthread_t ntid;
 		if (pthread_create(&ntid, NULL, threadFunc, (void *)&args) != 0)
