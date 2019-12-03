@@ -279,8 +279,9 @@ int SingleConnServerHTML::sendMsg(string msg) {
 void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
 	//get corresponding reason in words
 	string reason = status2reason[statusCode];
-	//status line (
+	//status line
 	string statusLine = "HTTP/1.1 " + to_string(statusCode) + " " + reason + "\r\n";
+	//if body exists
 	if (length > 0) {
 		statusLine += "Content-Length: " + to_string(length) + "\r\n";
 		statusLine += "Content-Type: text/html\r\n";
@@ -296,7 +297,6 @@ void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
 		statusLine += "\r\n";
 		statusLine += body;
 	}
-	//no headers
 	else {
 		statusLine += "\r\n";
 	}
@@ -309,10 +309,8 @@ void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
  */
 string sendCommand(string command) {
 	char buff[BUFF_SIZE];
-//	cout << ")))" << command.c_str() << endl;
 	pthread_mutex_lock(&mutex_backendSock);
-	char *c_command = (char *)command.c_str();
-	write(backendSock, c_command, strlen(c_command));
+	write(backendSock, (char *)command.c_str(), command.length());
 	read(backendSock, buff, sizeof(buff));
 	pthread_mutex_unlock(&mutex_backendSock);
 	if (VERBOSE)
@@ -380,9 +378,6 @@ void SingleConnServerHTML::handleGET() {
 		sendMsg(HTML);
 	}
 	else {
-		if (VERBOSE) {
-			fprintf(stderr, "NOT FOUND: %s\n", requestURI);
-		}
 		//Resource not found
 		sendStatus(404);
 	}
@@ -420,14 +415,14 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		}
 
 		//Authenticate
-//		string s_authCmd = "AUTH " + user + " " + pass;
-//		string authResult = sendCommand(s_authCmd);
-//		string okerr = authResult.substr(0,3);
-//		if (authResult.substr(0,3).compare("+OK") != 0) {
-//			cout << "HI" << endl;
+		string s_authCmd = "AUTH " + user + " " + pass;
+		string authResult = sendCommand(s_authCmd);
+		string okerr = authResult.substr(0,3);
+		if (authResult.substr(0,3).compare("+OK") != 0) {
+			cout << "HI" << endl;
 
-		//hardcoded user/pass:
-		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
+//		//hardcoded user/pass:
+//		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
 			//redirect to login page
 			//TODO: add message stating invalid credentials
 			string HTML = readHTMLFromFile("templates/login.html");
@@ -477,12 +472,11 @@ void SingleConnServerHTML::backbone() {
 		//from strtok single character delimiter, modify in-place, char * hell to string paradise
 		string requestLine = c_requestLine;
 
-		if (requestLine.length() == 0)
-			continue;
+//		if (requestLine.length() == 0)
+//			continue;
 
 		int i_endline = requestLine.find("\r\n");
 		string firstLine = requestLine.substr(0, i_endline);
-		cerr << "shrug";
 		string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
 
 		//I exaggerated strtok can be better for multitoken split
