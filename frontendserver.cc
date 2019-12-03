@@ -201,14 +201,18 @@ public:
 private:
 	string readHTMLFromFile(string fname);
 	int sendMsg(string msg);
-	void sendStatus(int statusCode, int length);
+	void sendStatus(int statusCode);
+	void sendHeaders(int length);
 	void handleGET();
 	void handlePOST(char *body);
+	void splitHeaderBody(string input, vector<string> *header_list, string *body);
 
 	int sock;
 	string webroot;
 	string requestURI;
 	bool loggedIn;
+	bool sendCookie;
+	int cookieValue;
 	string redirectTo; //the page a user attempts to visit before redirected to login
 	set<string> commands;
 	map<int, string> status2reason;
@@ -221,6 +225,8 @@ SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot):
 	sock(sock), webroot(webroot) {
 	requestURI = "";
 	loggedIn = false;
+	sendCookie = false;
+	cookieValue = 0;
 	redirectTo = "/index.html";
 	commands = {
 		"GET",
@@ -272,20 +278,15 @@ int SingleConnServerHTML::sendMsg(string msg) {
 }
 
 /*
- * Sends a status code with the description.
+ * Convenience function: Sends a status code with the description.
  * Non-200 codes are wrapped in HTML to display.
  * Note: HTTP version used here affects msg version received from client!
  */
-void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
+void SingleConnServerHTML::sendStatus(int statusCode) {
 	//get corresponding reason in words
 	string reason = status2reason[statusCode];
 	//status line
 	string statusLine = "HTTP/1.1 " + to_string(statusCode) + " " + reason + "\r\n";
-	//if body exists
-	if (length > 0) {
-		statusLine += "Content-Length: " + to_string(length) + "\r\n";
-		statusLine += "Content-Type: text/html\r\n";
-	}
 	//format in HTML if not 200
 	if (statusCode != 200) {
 		string body =
@@ -300,6 +301,31 @@ void SingleConnServerHTML::sendStatus(int statusCode, int length = 0) {
 	else {
 		statusLine += "\r\n";
 	}
+
+	sendMsg(statusLine);
+}
+
+/*
+ * Sends just headers.
+ */
+void SingleConnServerHTML::sendHeaders(int length = 0) {
+	int statusCode = 200;
+	//get corresponding reason in words
+	string reason = status2reason[statusCode];
+	//status line
+	string statusLine = "HTTP/1.1 " + to_string(statusCode) + " " + reason + "\r\n";
+	//if body exists
+	if (length > 0) {
+		statusLine += "Content-Length: " + to_string(length) + "\r\n";
+		statusLine += "Content-Type: text/html\r\n";
+	}
+	//if cookie needs to be sent
+	if (sendCookie) {
+		statusLine += "Set-Cookie: name=" + to_string(cookieValue) + "\r\n";
+		sendCookie = false;
+//		cookieValue++;
+	}
+	statusLine += "\r\n";
 
 	sendMsg(statusLine);
 }
@@ -354,7 +380,7 @@ void SingleConnServerHTML::handleGET() {
 		cerr << "UH OH " << requestURI << endl;
 		redirectTo = requestURI;
 		string HTML = readHTMLFromFile("templates/login.html");
-		sendStatus(200, HTML.length()); //possibly -4 length
+		sendHeaders(HTML.length()); //possibly -4 length
 		sendMsg(HTML);
 		return;
 	}
@@ -363,18 +389,18 @@ void SingleConnServerHTML::handleGET() {
 		//read from templates/index.html
 		string HTML = readHTMLFromFile("templates/index.html");
 		//send OK and headers
-		sendStatus(200, HTML.length());
+		sendHeaders(HTML.length());
 		//serve landing page
 		sendMsg(HTML);
 	}
 	else if (requestURI.compare("/mail.html") == 0) {
 		string HTML = readHTMLFromFile("templates/mail.html");
-		sendStatus(200, HTML.length());
+		sendHeaders(HTML.length());
 		sendMsg(HTML);
 	}
 	else if (requestURI.compare("/storage.html") == 0) {
 		string HTML = readHTMLFromFile("templates/storage.html");
-		sendStatus(200, HTML.length());
+		sendHeaders(HTML.length());
 		sendMsg(HTML);
 	}
 	else {
@@ -409,7 +435,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 			//redirect to login page
 			//TODO: add message stating account add successful
 			string HTML = readHTMLFromFile("templates/login.html");
-			sendStatus(200, HTML.length());
+			sendHeaders(HTML.length());
 			sendMsg(HTML);
 			return;
 		}
@@ -426,15 +452,35 @@ void SingleConnServerHTML::handlePOST(char *body) {
 			//redirect to login page
 			//TODO: add message stating invalid credentials
 			string HTML = readHTMLFromFile("templates/login.html");
-			sendStatus(200, HTML.length());
+			sendHeaders(HTML.length());
 			sendMsg(HTML);
 			return;
 		}
 
 		loggedIn = true;
+		sendCookie = true;
 		requestURI = redirectTo;
 		redirectTo = "";
 		handleGET();
+	}
+}
+
+/*
+ * Get headers and body from an HTTP request.
+ */
+void SingleConnServerHTML::splitHeaderBody(string input, vector<string> *header_list, string *body) {
+	//deal with body
+	int i_endheaders = input.find("\r\n\r\n");
+	*body = input.substr(i_endheaders+strlen("\r\n\r\n"));
+
+	//deal with headers (leave an \r\n for easier iteration below)
+	string headers = input.substr(0,i_endheaders+2);
+	int i_endline;
+	string remainingHeaders = headers;
+	while((i_endline = remainingHeaders.find("\r\n")) != std::string::npos) {
+		string line = remainingHeaders.substr(0,i_endline);
+		remainingHeaders = remainingHeaders.substr(i_endline+strlen("\r\n"));
+		header_list->push_back(line);
 	}
 }
 
@@ -467,7 +513,7 @@ void SingleConnServerHTML::backbone() {
 			break;
 
 		if (VERBOSE)
-			fprintf(stderr, "[%d] C: |%s|\n", sock, c_requestLine);
+			fprintf(stderr, "[%d] C: {%s}\n", sock, c_requestLine);
 
 		//from strtok single character delimiter, modify in-place, char * hell to string paradise
 		string requestLine = c_requestLine;
@@ -475,9 +521,14 @@ void SingleConnServerHTML::backbone() {
 //		if (requestLine.length() == 0)
 //			continue;
 
-		int i_endline = requestLine.find("\r\n");
-		string firstLine = requestLine.substr(0, i_endline);
-		string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
+		vector<string> headers;
+		string body;
+		splitHeaderBody(requestLine, &headers, &body);
+		string firstLine = headers[0];
+
+//		int i_endline = requestLine.find("\r\n");
+//		string firstLine = requestLine.substr(0, i_endline);
+//		string notFirstLine = requestLine.substr(i_endline+strlen("\r\n"));
 
 		//I exaggerated strtok can be better for multitoken split
 		char *c_firstLine = (char *)firstLine.c_str();
@@ -511,13 +562,28 @@ void SingleConnServerHTML::backbone() {
 		}
 		requestURI = reqURI;
 
+		//check cookie
+		if (loggedIn) {
+			int receivedCookie;
+			for (string header: headers) {
+				if (header.find("Cookie: ") == 0) {
+					receivedCookie = stoi(header.substr(strlen("Cookie: name=")));
+					break;
+				}
+			}
+			if (receivedCookie != cookieValue) {
+				sendStatus(401);
+				continue;
+			}
+		}
+
 		if (req.compare("GET") == 0) {
 			handleGET();
 		}
 		else if (req.compare("POST") == 0) {
 			//get body
-			int i_endheaders = notFirstLine.find("\r\n\r\n");
-			string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
+//			int i_endheaders = notFirstLine.find("\r\n\r\n");
+//			string body = notFirstLine.substr(i_endheaders+strlen("\r\n\r\n"));
 			handlePOST((char *)body.c_str());
 		}
 		else
@@ -544,7 +610,7 @@ int main(int argc, char *argv[])
 	int c;
 	int N = 0;
 	int servPort = 8000;
-	string webroot;
+	string webroot = "localhost";
 	string buff;
 
 	struct sigaction action;
@@ -568,10 +634,10 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	//non option arguments
-	if (optind >= argc)
-		die("*** Author: Michal Porubcin (michal19)\n", -1, false);
-	webroot = argv[optind];
+//	//non option arguments
+//	if (optind >= argc)
+//		die("*** Author: Michal Porubcin (michal19)\n", -1, false);
+//	webroot = argv[optind];
 
 	if (VERBOSE)
 		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webroot.c_str(), servPort);
