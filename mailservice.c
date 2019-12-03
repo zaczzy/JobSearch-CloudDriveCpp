@@ -34,7 +34,7 @@ time_t rawtime;
 struct tm * timeinfo;
 
 
-int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd) {
+int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd, get_mail_response *resp) {
   int valid = FAILURE;    //Defensive programming
   char send_msg[1000];
   char recv_msg[1000];
@@ -64,7 +64,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tUser inbox\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<ol>\n\t\t<li>\n\t\t\tInbox:\n\t\t\t<ul>\n\t\t\t\t<li><pre> <b>Charles Aranguiz</b>  My struggles  Monday 4th <button> Read me </button> </pre> </li>\n\t\t\t\t<li><pre> <b>%s</b>   %s   %s  <button> Read me> </button> </pre> </li>\n\t\t\t\t<li>grandpa</li>\n\t\t\t</ul>\n\t\t\t</li>\n\t\t</ol>\n\t\n\n</body>\n\n</html>\r\n", user, subject, date);
 #endif
   //    strcpy(html_response, send_msg);
-      retrieveMailHeader(user, server_fd);
+      retrieveMailHeader(user, server_fd, resp);
 
     }break;
     case READ_MAIL: {
@@ -75,7 +75,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
        char email_body[MAX_LEN_EMAIL_BODY];
        downloadEmail(user, email_id, mail_msg, server_fd, email_body);
        sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tEMAIL\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<h1>\n\t\t\tInbox:\n\t\t\t</h1>\n\t\t\t\t<p>%s</p>\n\t\n\n</body>\n\n</html>\r\n", email_body);
-       strcpy(html_response, send_msg);
+       strcpy((char *)html_response, send_msg);
        return 0;
       
      }break;
@@ -100,7 +100,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
 #endif
        char recv_msg[1000];
        deleteEmail(user, email_id, mail_msg, server_fd, recv_msg);
-       strcpy(html_response, recv_msg);
+       strcpy((char *)html_response, recv_msg);
           
      } break;
     default: {
@@ -222,25 +222,24 @@ int downloadEmail(char *user, uint16_t mailId, char *msg, int server_fd, char em
   return 0;
 }
 
-int retrieveMailHeader(char *user, int server_fd) {
+int retrieveMailHeader(char *user, int server_fd, get_mail_response *resp) {
 
   get_mail_request request;
-  get_mail_response resp;
-
+  
   strcpy(request.prefix, "getmail");
   strcpy(request.username, user);
 
   send(server_fd, &request, sizeof(get_mail_request), 0);
   
-  recv(server_fd, (get_mail_response *)&resp, sizeof(get_mail_response), 0);
+  recv(server_fd, (get_mail_response *)resp, sizeof(get_mail_response), 0);
   printf("\t\t\t\t\tINBOX\n\n\n");
 #ifdef DEBUG
-  printf("username: %s\n", (char *)resp.username);
-  printf("num_emails: %d\n", (int)resp.num_emails);
+  printf("username: %s\n", (char *)resp->username);
+  printf("num_emails: %d\n", (int)resp->num_emails);
 #endif
-  for(int i=0 ; i < resp.num_emails ; i++) {
+  for(int i=0 ; i < resp->num_emails ; i++) {
     
-  printf("From: %s To: %s Subject: %s, date: %s\n", resp.email_headers[i].from,  resp.email_headers[i].to,  resp.email_headers[i].subject,  resp.email_headers[i].date);
+  printf("From: %s To: %s Subject: %s, date: %s\n", resp->email_headers[i].from,  resp->email_headers[i].to,  resp->email_headers[i].subject,  resp->email_headers[i].date);
 
   }
 }

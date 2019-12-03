@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <sys/select.h>
 #include "mailservice.h"
+#include "data_types.h"
 
 //#define DEBUG
 #define RECV_BUF_SIZE 256
@@ -95,9 +96,11 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
       if(state == 0) {
         if(!strcasecmp(cmd0, "INBOX")) {
           /*Retrieve user inbox */
-           char response[1000];
            printf("250 OK\n");
-           webserver_core(0, user, -1, NULL, NULL, response, server_fd);
+           char response[1000];
+           get_mail_response resp;
+           webserver_core(0, user, -1, NULL, NULL, response, server_fd, &resp);
+           memset(&resp, 0, sizeof(get_mail_response));
            memset(response, 0, sizeof(response));
            state = 0;
 
@@ -115,7 +118,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               char response[1000];
   
               printf("250 OK\n");
-              webserver_core(1, user, email_index, NULL, NULL, response, server_fd);
+              webserver_core(1, user, email_index, NULL, NULL, response, server_fd, NULL);
               memset(response, 0, sizeof(response));
               email_index = 0 ;
               state = 0;
@@ -134,7 +137,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               email_index = atoi(cmd1); 
               char response[1000];
               printf("250 OK\n");
-              webserver_core(3, user, email_index, NULL, NULL, response, server_fd);
+              webserver_core(3, user, email_index, NULL, NULL, response, server_fd, NULL);
               memset(response, 0, sizeof(response));
               email_index = 0 ;
               state = 0;
@@ -193,7 +196,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
             printf("250 OK DATA");
             email_msg[msg_len] = '\0';
             char response[1000];
-            webserver_core(2, user, -1, email_msg, rcpt_to, response, server_fd);  
+            webserver_core(2, user, -1, email_msg, rcpt_to, response, server_fd, NULL);  
             printf("%s\n", email_msg);
             memset(email_msg, 0, sizeof(email_msg));
             memset(rcpt_to, 0, sizeof(rcpt_to));

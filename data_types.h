@@ -1,3 +1,5 @@
+#ifndef DATA_TYPES_H
+#define DATA_TYPES_H
 
 #include <vector>
 
@@ -143,3 +145,4 @@ typedef struct
     //uint64_t index;
 }delete_mail_request;
 
+#endif
