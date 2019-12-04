@@ -20,12 +20,15 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include "mailservice.h"
+
 using namespace std;
 
 int BUFF_SIZE = 2048;
 int MAX_CLNT = 100;
 int BACKEND_PORT = 5000;
 bool VERBOSE = false;
+char *EMPTYSTR = (char *)"";
 bool shutdownFlag = false;
 int backendSock = -1;
 pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
@@ -178,14 +181,11 @@ int createClientSocket(unsigned short port) {
 		fprintf(stderr, "%s\n", buff);
 
 	return clntSock;
-
-	//  ADD username password
-	//	AUTH username password
 }
 
 /*
  * Tracks cookies (single front-end server scenario).
- * Later the public methods will connect to load balancer
+ * Later the public methods will connect to load balancer or backend
  * to fetch and return the data instead of storing local state.
  * SingleConnServerHTML won't know the difference.
  */
@@ -208,12 +208,41 @@ CookieRelay::CookieRelay() {
 }
 
 /*
- * Destructor
+ * Nothing to see here
  */
 CookieRelay::~CookieRelay() {
-
+//	                               .....
+//	                            ...........
+//	                           .. ..........    ........
+//	                        ,,.... @@@@@%...,*.*@@@@@.....
+//	                   *,/#%%#,....@@@@@@..,/..(@@@@.......
+//	               /,/((#%#%&,.....%(..,,,(,.............
+//	            ,(/#(((((%####(###((/,,,*(%##,,............/
+//	           *##%/#(###%#(((#((%%###%&%%#%%#%*...,......(((///
+//	           %%%%#%#%%%%###%#%%%(%%##%######&(#((/*%#(%###//#/.
+//	         ,*#&%((%##%%%#%##%%#(%(#(%#%###%#%%%##%%##(#(#*(#(#*/.
+//	          *(%%&&(%#%#%%##%&%(####%%%&&%#%#%###((%##((##((/,
+//	         *#/%&&@@@@@@@%%%%%%%%%%%#%%%#%%%%%#(%%%%#(#&%%%%%%((*/**
+//	        ((#%%%&@@@@@@@@@@@@@@@@@@@@&%%%&%&%###%&%###&%%%%%##((#//*
+//	        /##%%&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%%%&%%%%%%%&&(%%###///,
+//	        .#%%&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&&&%%%%%%%%#(%##*,
+//	      .*(#%%&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&%#%#/
+//	       ,/##%%&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&%#(#*
+//	        ,##%%%&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%%%%,(
+//	        ,(##%%&%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%%%%(.
+//	        ..(#%%%%%%&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%%%%%#/*
+//	        #%%(%%%%%#%%&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%%&%%%###,,
+//	       /%%%&%#%(&%%%%&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%&%%%&&%#(/
+//	      .(%%%#%#&&&%&&&&%%&&@@@@@@@@@@&@@@@@@&%%&&&%%%%%(##*
+//	     *(%%%%&&&%##%%&%&&%#%&&&%%&%&&&%%&%%&&%%&%%&&%%%%#%&(////*****//
+//	   *(,%%&&&%&*#%%%%%&&&%&%%%%%%%#%&%%#%#(%%&&%%&&%%%(***,**/*#%%#(*,
+//	   ,#%%&&%&&&&&&&&%&%%#%%&&&%%&@%%%%%%%&%%&%%%&&%&&(#&%%%%(***/*/*,****/**,
+//	.*#(%%&&&%&&&&&&&&&&&&&%%&%%%%&%%%%&&%%&&%%%(#&%&&%%%####,/**//*,*/*//*,*,,
+//	(%%%&&&&&%&&&&&&&&&&&&%&&%&%&@&&&&&&&%%%%%&%&&&%%%%%%*****%*&******/**/*,,
+//	(%&%&&&%%&&&@&&&&&&&@&&&&&&&&&&&&&&%&&%&&&&&&&&&&&&&&/,**///%%%(//,((/******.
+//	%&&&%&&&&&%&&&@&&&@&&&&%%@&&&&%#&&%#%&&&%%&%&&&&&&***,**/*,**,(//**#(#((//(**,,
+//	#&%&&&%%&&&&&%&%&&%%%%&&&&&@&%&&&&%%%&%&&&&&&%*(**//(/((//#((((#&%###%##/*,
 }
-
 /*
  * Generate a cookie for a new browser
  */
@@ -321,7 +350,7 @@ int SingleConnServerHTML::sendMsg(string msg) {
 }
 
 /*
- * Convenience function: Sends a status code with the description.
+ * Sends a status code with the description.
  * Non-200 codes are wrapped in HTML to display.
  * Note: HTTP version used here affects msg version received from client!
  */
@@ -373,7 +402,7 @@ void SingleConnServerHTML::sendHeaders(int length = 0) {
 }
 
 /*
- * Send command to backend
+ * Send command to backend (ritika)
  */
 string sendCommand(string command) {
 	char buff[BUFF_SIZE];
@@ -418,6 +447,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		return;
 	}
 
+	//if not logged in
 	if (cookieValue == -1) {
 		cerr << "UH OH " << requestURI << endl;
 		redirectTo = requestURI;
@@ -427,16 +457,32 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		return;
 	}
 
+	//logged in
 	string HTML;
-	//(if logged in, redirect login.html to index.html)
+	//(redirect login.html to index.html, because logged in)
 	if (requestURI.compare("/index.html") == 0 ||
 			requestURI.compare("/") == 0 ||
 			requestURI.compare("/login.html") == 0)
 		HTML = readHTMLFromFile("templates/index.html");
-	else if (requestURI.compare("/mail.html") == 0)
+	else if (requestURI.compare("/mail/inbox.html") == 0) {
+		//SHOW_MAIL
+		char c_HTML[BUFF_SIZE];
+		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
+		HTML = c_HTML;
 		HTML = readHTMLFromFile("templates/mail.html");
-	else if (requestURI.compare("/storage.html") == 0)
+	}
+	else if (requestURI.find("/mail/m") == 0) {
+		//READ_MAIL
+		//URL format: /mail/m[email_id]
+		string email_id = requestURI.substr(strlen("/mail/m"));
+		char c_HTML[BUFF_SIZE];
+		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
+		HTML = c_HTML;
+	}
+	else if (requestURI.compare("/storage.html") == 0) {
+		//storage dummy page
 		HTML = readHTMLFromFile("templates/storage.html");
+	}
 	else {
 		//Resource not found
 		sendStatus(404);
@@ -457,15 +503,15 @@ void SingleConnServerHTML::handlePOST(char *body) {
 	if (requestURI.compare("/handle_login") == 0) {
 		//parse login data e.g. user=michal&pass=p
 		const char *delim = "&\n";
-		char *user_str = strtok(body, delim);
-		char *pass_str = strtok(NULL, delim);
-		char *adduser_str = strtok(NULL, delim);
-		string user = user_str + strlen("user=");
-		string pass = pass_str + strlen("pass=");
-		cout << "\n===" << user << "," << pass << "===\n" << endl;
+		char *c_user = strtok(body, delim);
+		char *c_pass = strtok(NULL, delim);
+		char *c_adduser = strtok(NULL, delim);
+		string user = c_user + strlen("user=");
+		string pass = c_pass + strlen("pass=");
+//		cout << "\n===" << user << "," << pass << "===\n" << endl;
 
 		//Add new user
-		if (adduser_str != NULL && strlen(adduser_str) > 0) {
+		if (c_adduser != NULL && strlen(c_adduser) > 0) {
 			cout << "BYE" << endl;
 //			string remember = adduser_str + strlen("adduser=");
 			string s_addCmd = "ADD " + user + " " + pass;
@@ -505,6 +551,29 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		requestURI = redirectTo;
 		redirectTo = "";
 		handleGET();
+	}
+	//from some kind of compose_email.html ??
+	if (requestURI.compare("/send_mail") == 0) {
+		//SEND_MAIL
+		//parse data e.g. msg=NoobDown&rcpt=Me
+		const char *delim = "&\n";
+		char *c_rcpt = strtok(body, delim);
+		char *c_msg = strtok(NULL, delim);
+		string rcpt = c_rcpt + strlen("rcpt=");
+		string msg = c_msg + strlen("msg=");
+
+		//throwaway buffer
+		char b[BUFF_SIZE];
+		webserver_core(2, (char*)username.c_str(), -1, (char *)msg.c_str(), (char *)rcpt.c_str(), b, backendSock);
+		//handle differently on failure?
+	}
+	if (requestURI.compare("/delete_mail") == 0) {
+		//DELETE_MAIL
+		//parse data e.g. emailid=777
+		string email_id = body + strlen("emailid=");
+		char b[BUFF_SIZE];
+		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, backendSock);
+		//handle differently on failure?
 	}
 }
 
@@ -634,15 +703,12 @@ void SingleConnServerHTML::backbone() {
 		}
 
 
-		if (req.compare("GET") == 0) {
+		if (req.compare("GET") == 0)
 			handleGET();
-		}
-		else if (req.compare("POST") == 0) {
+		else if (req.compare("POST") == 0)
 			handlePOST((char *)body.c_str());
-		}
-		else if (req.compare("HEAD") == 0) {
+		else if (req.compare("HEAD") == 0)
 			handleGET(true);
-		}
 		else
 			sendStatus(501);
 	}
