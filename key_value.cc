@@ -17,14 +17,14 @@ typedef enum
    MAIL
 }column_type;
 
-class hash_fn{
-public:
-
-    std::string operator()(const email_header& header) const
-    {
-        return std::string(header.date) + std::string(header.subject);
-    }
-};
+//class hash_fn{
+//public:
+//
+//    std::string operator()(const email_header& header) const
+//    {
+//        return std::string(header.date) + std::string(header.subject);
+//    }
+//};
 
 typedef struct
 {
@@ -32,27 +32,75 @@ typedef struct
     unsigned long email_id;
     email_header* header;
     char* email_body;
+    unsigned long body_len;
     //std::vector<email_header*> header_list;
     //std::vector<char*> body_list;
+    
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & email_id;
+       ar & header;
+       for(unsigned long i = 0; i < body_len; ++i)
+            ar & email_body[i];
+   }
+#endif
 }mail_content;
-
-// TODO: For later use
-//typedef struct
-//{
-//    uint64_t num_emails;
-//    std::unordered_map<email_header, char*, hash_fn> email_list;
-//}mail_content;
 
 typedef struct
 {
     uint64_t file_len;
     char* file_data;
+    
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & file_len;
+       for(uint64_t i = 0; i < file_len; ++i)
+            ar & file_data[i];
+   }
+#endif
 }file_content;
+
+typedef union
+{
+    mail_content mail;
+    file_content file;
+    
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & mail;
+       ar & file;
+   }
+#endif
+}content_union;
 
 typedef struct
 {
     column_type type;
+    //content_union* content;
     void* content;
+
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & type;
+       //ar & content;
+   }
+#endif
 }tablet_column;
 
 typedef std::unordered_map<std::string, tablet_column> map_tablet_row;
@@ -63,6 +111,20 @@ typedef struct
     unsigned long num_emails;
     unsigned long num_files;
     map_tablet_row columns;
+
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & email_id;
+       ar & password;
+       ar & num_emails;
+       ar & num_files;
+       ar & columns;
+   }
+#endif
 }tablet_row;
 
 typedef std::unordered_map<std::string, tablet_row> map_tablet;
@@ -72,6 +134,7 @@ extern bool verbose;
 /** Map to store key value pairs */
 map_tablet tablet; 
 
+#if 1
 bool add_user(char* username, char* password)
 {
     map_tablet::iterator itr;
@@ -176,6 +239,7 @@ bool store_email(put_mail_request* request)
     // TODO: Check NULL
     strncpy(content->email_body, request->email_body, request->email_len);
     *(content->header) = request->header;
+    content->header->email_id = email_id;
     content->email_id = email_id;
 
     col.content = content; 
@@ -631,6 +695,11 @@ bool store_file(put_file_metadata* request, int fd)
     return SUCCESS;
 }
 
+void serialize_map_to_file()
+{
+
+}
+
 bool process_command(char* command, int len, int fd)
 {
     char message[64] = {0};
@@ -852,3 +921,35 @@ bool process_command(char* command, int len, int fd)
    return FAILURE;
 }
 
+#endif
+
+
+#ifdef SERIALIZE
+void serialize_tablet_to_file(char* filepath)
+{
+   std::ofstream ofs(filepath);
+   boost::archive::text_oarchive oa(ofs);
+   oa << tablet;
+   ofs.close();
+
+   map_tablet new_tablet;
+   std::ifstream ifs(filepath);
+   boost::archive::text_iarchive ia(ifs);
+   ia >> new_tablet;
+   ifs.close();
+}
+
+void deserialize_tablet_from_file(char* filepath)
+{
+   //map_tablet new_tablet;
+   //std::ifstream ifs(filepath);
+   //boost::archive::text_iarchive ia(ifs);
+   //ia >> new_tablet;
+   //ifs.close();
+}
+
+//int main()
+//{
+//
+//}
+#endif

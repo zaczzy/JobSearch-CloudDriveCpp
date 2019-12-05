@@ -1,6 +1,19 @@
 
 #include <vector>
 
+#ifdef SERIALIZE
+#include <fstream>
+#include  <iostream>
+#include <boost/serialization/map.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp> 
+#include <boost/archive/binary_iarchive.hpp> 
+#include <boost/serialization/unordered_map.hpp> 
+#include <boost/serialization/string.hpp> 
+#include <boost/serialization/list.hpp> 
+#endif
+
 #define SUCCESS         0
 #define FAILURE         1
 #define MAX_LEN_EMAIL_BODY  256 // Will change this later
@@ -23,6 +36,7 @@ struct email_header
     char to[64];
     char subject[256];
     char date[64];
+    unsigned long email_id;
     
     bool operator==(const struct email_header& header) const
     {
@@ -34,6 +48,19 @@ struct email_header
 
         return false;
     }
+    
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & from;
+       ar & to;
+       ar & subject;
+       ar & date;
+   }
+#endif
 };
 
 #pragma pack(1)
@@ -61,6 +88,7 @@ typedef struct
     char prefix[8];     // Should be "getmail""
     char username[32];
     //char email_id[64];
+    //unsigned long email_id;
     uint64_t num_emails;
     email_header email_headers[MAX_EMAILS];
 }get_mail_response;

@@ -43,6 +43,7 @@ void get_email_header_list(int sockfd)
         printf("to: %s\n", response->email_headers[i].to);
         printf("subject: %s\n", response->email_headers[i].subject);
         printf("date: %s\n", response->email_headers[i].date);
+        printf("email_id: %lu\n", response->email_headers[i].email_id);
     }
 
 }
@@ -136,7 +137,7 @@ void func(int sockfd)
     del_req.prefix[strlen(del_req.prefix)] = '\0';
     strncpy(del_req.username, "ritika", strlen("ritika"));
     del_req.username[strlen(del_req.username)] = '\0';
-    del_req.email_id = 2;
+    del_req.email_id = 1;
 
     bytes = write(sockfd, (char*)(&del_req), sizeof(delete_mail_request)); 
     printf("written %d bytes to server\n", bytes);
