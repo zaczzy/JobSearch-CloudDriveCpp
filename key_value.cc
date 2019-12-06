@@ -11,30 +11,58 @@
 
 #include "data_types.h"
 
+#ifdef SERIALIZE
+class SerializeCStringHelper {
+public:
+  SerializeCStringHelper(char*& s) : s_(s) {}
+  SerializeCStringHelper(const char*& s) : s_(const_cast<char*&>(s)) {}
+
+private:
+
+  friend class boost::serialization::access;
+
+  template<class Archive>
+  void save(Archive& ar, const unsigned version) const {
+    bool isNull = (s_ == 0);
+    ar & isNull;
+    if (!isNull) {
+      std::string s(s_);
+      ar & s;
+    }
+  }
+
+  template<class Archive>
+  void load(Archive& ar, const unsigned version) {
+    bool isNull;
+    ar & isNull;
+    if (!isNull) {
+      std::string s;
+      ar & s;
+      s_ = strdup(s.c_str());
+    } else {
+      s_ = 0;
+    }
+  }
+
+  BOOST_SERIALIZATION_SPLIT_MEMBER();
+
+private:
+  char*& s_;
+};
+#endif
+
 typedef enum 
 {
    DRIVE,
    MAIL
 }column_type;
 
-//class hash_fn{
-//public:
-//
-//    std::string operator()(const email_header& header) const
-//    {
-//        return std::string(header.date) + std::string(header.subject);
-//    }
-//};
-
 typedef struct
 {
-    //uint64_t num_emails;
     unsigned long email_id;
     email_header* header;
     char* email_body;
     unsigned long body_len;
-    //std::vector<email_header*> header_list;
-    //std::vector<char*> body_list;
     
 #ifdef SERIALIZE
     friend class boost::serialization::access;
@@ -44,8 +72,9 @@ typedef struct
        // Simply list all the fields to be serialized/deserialized.
        ar & email_id;
        ar & header;
-       for(unsigned long i = 0; i < body_len; ++i)
-            ar & email_body[i];
+       ar & body_len;
+       SerializeCStringHelper helper(email_body);
+       ar & helper; 
    }
 #endif
 }mail_content;
@@ -62,33 +91,66 @@ typedef struct
    {
        // Simply list all the fields to be serialized/deserialized.
        ar & file_len;
-       for(uint64_t i = 0; i < file_len; ++i)
-            ar & file_data[i];
+       SerializeCStringHelper helper(file_data);
+       ar & helper; 
    }
 #endif
 }file_content;
 
-typedef union
-{
-    mail_content mail;
-    file_content file;
-    
 #ifdef SERIALIZE
-    friend class boost::serialization::access;
-   template<class Archive>
-   void serialize(Archive & ar, const unsigned int version)
-   {
-       // Simply list all the fields to be serialized/deserialized.
-       ar & mail;
-       ar & file;
-   }
+class VoidPtrHelper {
+public:
+  VoidPtrHelper(column_type& _type, void*& _content) : type(_type), content(_content) {}
+
+private:
+
+  friend class boost::serialization::access;
+
+  template<class Archive>
+  void save(Archive& ar, const unsigned version) const {
+    
+      ar & type;
+      if (type == MAIL)
+      {
+        file_content* f_content = (file_content*)content;
+        ar & f_content;
+      }
+      else if (type == DRIVE)
+      {
+        mail_content* m_content = (mail_content*)content;
+        ar & m_content;
+      }
+  }
+
+  template<class Archive>
+  void load(Archive& ar, const unsigned version) {
+      column_type type;
+      ar & type;
+      if (type == MAIL)
+      {
+        file_content* f_content;
+        ar & f_content;
+        content = f_content;
+      }
+      else if (type == DRIVE)
+      {
+        mail_content* m_content;
+        ar & m_content;
+        content = m_content;
+      }
+  }
+
+  BOOST_SERIALIZATION_SPLIT_MEMBER();
+
+private:
+ column_type& type;
+ void*& content;
+};
 #endif
-}content_union;
 
 typedef struct
 {
     column_type type;
-    //content_union* content;
     void* content;
 
 #ifdef SERIALIZE
@@ -98,7 +160,8 @@ typedef struct
    {
        // Simply list all the fields to be serialized/deserialized.
        ar & type;
-       //ar & content;
+       VoidPtrHelper vp_helper(type, content);
+       ar & vp_helper;
    }
 #endif
 }tablet_column;
@@ -134,7 +197,6 @@ extern bool verbose;
 /** Map to store key value pairs */
 map_tablet tablet; 
 
-#if 1
 bool add_user(char* username, char* password)
 {
     map_tablet::iterator itr;
@@ -695,11 +757,6 @@ bool store_file(put_file_metadata* request, int fd)
     return SUCCESS;
 }
 
-void serialize_map_to_file()
-{
-
-}
-
 bool process_command(char* command, int len, int fd)
 {
     char message[64] = {0};
@@ -921,9 +978,6 @@ bool process_command(char* command, int len, int fd)
    return FAILURE;
 }
 
-#endif
-
-
 #ifdef SERIALIZE
 void serialize_tablet_to_file(char* filepath)
 {
@@ -932,24 +986,67 @@ void serialize_tablet_to_file(char* filepath)
    oa << tablet;
    ofs.close();
 
+}
+
+map_tablet deserialize_tablet_from_file(char* filepath)
+{
    map_tablet new_tablet;
    std::ifstream ifs(filepath);
    boost::archive::text_iarchive ia(ifs);
    ia >> new_tablet;
    ifs.close();
+
+   return new_tablet;
 }
 
-void deserialize_tablet_from_file(char* filepath)
+#if 0
+int main()
 {
-   //map_tablet new_tablet;
-   //std::ifstream ifs(filepath);
-   //boost::archive::text_iarchive ia(ifs);
-   //ia >> new_tablet;
-   //ifs.close();
-}
+    /** Populate map with data */
+    tablet_row row;
+    row.email_id = std::string("ritika");
+    row.password = std::string("pass");
+    row.num_emails = 0;
+    row.num_files = 1;
+    
+    tablet_column col;
+    col.type = MAIL;
 
-//int main()
-//{
-//
-//}
+    file_content f_content;
+    f_content.file_len = 6;
+    f_content.file_data = (char*)malloc(6);
+    strcpy(f_content.file_data, "abcde");
+    
+    col.content = &f_content;
+    row.columns.insert(std::make_pair(std::string("col1"), col));
+
+    tablet.insert(std::make_pair("row1", row));
+
+    serialize_tablet_to_file("map.serial");
+    
+    map_tablet new_tablet;
+    new_tablet = deserialize_tablet_from_file("map.serial");
+
+    map_tablet::iterator it;
+    for(it = new_tablet.begin(); it != new_tablet.end(); it++)
+    {
+        printf("row key : %s\n", it->first.c_str());
+        printf("email id : %s\n", it->second.email_id.c_str());
+        printf("password: %s\n", it->second.password.c_str());
+        printf("num emails: %lu\n", it->second.num_emails);
+        printf("num files: %lu\n", it->second.num_files);
+
+        map_tablet_row::iterator it_col;
+
+        for (it_col = it->second.columns.begin(); it_col != it->second.columns.end(); it_col++)
+        {
+            printf("col key: %s\n", it_col->first.c_str());
+            printf("type val : %u\n", it_col->second.type);
+            file_content* content = (file_content*)it_col->second.content;;
+            printf("col content: file len : %lu\n", content->file_len);
+            printf("col content: file data : %s\n", content->file_data);
+        }
+    }
+}
+#endif
 #endif

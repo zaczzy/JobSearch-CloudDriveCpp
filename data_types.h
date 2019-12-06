@@ -1,6 +1,8 @@
 
 #include <vector>
 
+//#define SERIALIZE
+
 #ifdef SERIALIZE
 #include <fstream>
 #include  <iostream>
@@ -59,6 +61,7 @@ struct email_header
        ar & to;
        ar & subject;
        ar & date;
+       ar & email_id;
    }
 #endif
 };
@@ -68,7 +71,6 @@ typedef struct
 {
     char prefix[8];     // Should be "putmail"
     char username[32];
-    //char email_id[64];
     email_header header;
     uint64_t email_len;
     char email_body[MAX_LEN_EMAIL_BODY];
