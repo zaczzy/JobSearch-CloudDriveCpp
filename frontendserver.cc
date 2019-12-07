@@ -40,8 +40,8 @@ set<pthread_t> controlThreads;
  * Function for exiting main thread cleanly after interrupt
  */
 void cleanup(){
-	for (int t: socks)
-		close(socks);
+	for (int sock: socks)
+		close(sock);
 	for (pthread_t t: webThreads)
 		if (pthread_kill(t, SIGUSR1) < 0)
 			die("pthread_kill() failed", false);
@@ -49,19 +49,9 @@ void cleanup(){
 		if (pthread_kill(t, SIGUSR1) < 0)
 			die("pthread_kill() failed", false);
 	std::map<string,pthread_mutex_t>::iterator i;
-	for (i = locks.begin(); i!=locks.end(); ++i)
-		pthread_mutex_destroy(&(i->second));
+//	for (i = locks.begin(); i!=locks.end(); ++i)
+//		pthread_mutex_destroy(&(i->second));
 	exit(1);
-}
-
-/*
- * Function for exiting cleanly from either child or main thread
- */
-void die(string msg, bool isThread=true){
-	if (isThread)
-		pthread_exit(NULL);
-	else
-		exit(1);
 }
 
 /*
@@ -84,7 +74,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 
 		//split web server and config server address
 		int pos1 = line.find(",");
-		if (pos2 == std::string::npos)
+		if (pos1 == std::string::npos)
 			die("Invalid config file");
 		webAddr = line.substr(0,pos1);
 		controlAddr = line.substr(pos1+1);
@@ -97,11 +87,11 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 		int wPort = stoi(webAddr.substr(pos2+1));
 
 		//parse control server IP and port
-		int pos2 = controlAddr.find(":");
-		if (pos2 == std::string::npos)
+		int pos3 = controlAddr.find(":");
+		if (pos3 == std::string::npos)
 			die("Invalid address in config file");
-		string cIP = controlAddr.substr(0,pos2);
-		int cPort = stoi(controlAddr.substr(pos2+1));
+		string cIP = controlAddr.substr(0,pos3);
+		int cPort = stoi(controlAddr.substr(pos3+1));
 
 		webIP = &wIP;
 		webPort = &wPort;
@@ -137,7 +127,7 @@ string sendCommand(string command) {
  * Initializes a SingleConnServerHTML
  */
 void *webThreadFunc(void *args){
-	struct thread_struct *a = (struct thread_struct *)args;
+	struct web_thread_struct *a = (struct web_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
 	string webroot = (string)(a->webroot);
 	CookieRelay *CR = (CookieRelay *)(a->CR);
@@ -152,10 +142,10 @@ void *webThreadFunc(void *args){
  * Initializes a control thread
  */
 void *controlThreadFunc(void *args){
-	struct thread_struct *a = (struct thread_struct *)args;
+	struct control_thread_struct *a = (struct control_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
 
-	SingleConnServerHTML S(clntSock, die, VERBOSE, &webThreads);
+	SingleConnServerControl S(clntSock, die, VERBOSE);
 	S.backbone();
 	close(clntSock);
 }
@@ -194,6 +184,7 @@ int main(int argc, char *argv[])
 	if (optind >= argc)
 		die("*** Author: Michal Porubcin (michal19)\n", false);
 //	char *configFile = argv[optind++];
+	char *configFile = (char *)"config_fes.txt";
 	int configID = atoi(argv[optind]); //deleted = sno = ?
 
 	string webIP;
@@ -203,7 +194,7 @@ int main(int argc, char *argv[])
 	readConfig_fes(configFile, configID, &webIP, &webPort, &controlIP, &controlPort);
 
 	if (VERBOSE)
-		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webroot.c_str(), controlPort);
+		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webIP.c_str(), controlPort);
 
 	//Server socket for webclients
 	int webSock = createServerSocket(webPort);
@@ -246,11 +237,11 @@ int main(int argc, char *argv[])
 
 			struct web_thread_struct args;
 			args.clntSock = clntSock;
-			args.webroot = webroot;
+			args.webroot = webIP;
 			args.CR = &CR;
 
 			pthread_t ntid;
-			if (pthread_create(&ntid, NULL, webthreadFunc, (void *)&args) != 0)
+			if (pthread_create(&ntid, NULL, webThreadFunc, (void *)&args) != 0)
 				cleanup();
 			pthread_detach(ntid);
 			webThreads.insert(ntid);
@@ -272,7 +263,7 @@ int main(int argc, char *argv[])
 			args.clntSock = clntSock;
 
 			pthread_t ntid;
-			if (pthread_create(&ntid, NULL, controlthreadFunc, (void *)&args) != 0)
+			if (pthread_create(&ntid, NULL, controlThreadFunc, (void *)&args) != 0)
 				cleanup();
 			pthread_detach(ntid);
 			controlThreads.insert(ntid);

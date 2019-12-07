@@ -1,6 +1,15 @@
 #ifndef SINGLECONNSERVERHTML_H
 #define SINGLECONNSERVERHTML_H
 
+#include <string>
+#include <vector>
+#include <set>
+#include <functional>
+
+#include "cookierelay.h"
+
+using namespace std;
+
 /*
  * Handles HTML service with one client.
  */
@@ -32,4 +41,4 @@ private:
 	map<int, string> status2reason;
 };
 
-#endif SINGLECONNSERVERHTML_H
+#endif //SINGLECONNSERVERHTML_H

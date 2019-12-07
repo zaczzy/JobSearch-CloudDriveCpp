@@ -11,7 +11,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include "generalserver.h"
+#include "servercommon.h"
 
 using namespace std;
 

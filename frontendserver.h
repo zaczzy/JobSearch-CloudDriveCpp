@@ -1,8 +1,11 @@
 #ifndef FRONTENDSERVER_H
 #define FRONTENDSERVER_H
 
-void cleanup(int sock, int sock2);
-void die(string msg, int sock, bool isThread = true);
+#include <string>
+#include "cookierelay.h"
+
+void cleanup();
+//void die(string msg, bool isThread = true);
 void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort, string *controlIP, int *controlPort);
 string sendCommand(string command);
 void *webThreadFunc(void *args);

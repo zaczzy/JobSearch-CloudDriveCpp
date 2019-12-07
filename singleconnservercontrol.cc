@@ -6,7 +6,7 @@ using namespace std;
  * Constructor
  */
 SingleConnServerControl::SingleConnServerControl(int sock, function<void(string, bool)> die, bool VERBOSE, set<pthread_t> *webThreads):
-	sock(sock), die(die), VERBOSE(VERBOSE), webThreads(webThreads) {
+	sock(sock), die(die), VERBOSE(VERBOSE) {
 
 }
 

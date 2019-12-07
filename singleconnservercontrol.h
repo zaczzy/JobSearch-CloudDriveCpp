@@ -8,7 +8,7 @@ using namespace std;
  */
 class SingleConnServerControl {
 public:
-	SingleConnServerControl(int sock, function<void(string, bool)> die);
+	SingleConnServerControl(int sock, function<void(string, bool)> die, bool VERBOSE);
 	~SingleConnServerControl();
 	void backbone();
 private:
@@ -17,6 +17,6 @@ private:
 	set<pthread_t> *webThreads;
 	int sendMsg(string msg);
 	function<void(string, bool)> die();
-}
+};
 
 #endif //SINGLECONNSERVERCONTROL_H

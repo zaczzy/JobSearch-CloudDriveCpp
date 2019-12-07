@@ -1,4 +1,9 @@
+
+#include <cstring>
+
 #include "singleconnserverhtml.h"
+
+using namespace std;
 
 /*
  * Constructor

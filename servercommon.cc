@@ -1,31 +1,13 @@
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <string.h>
-#include <vector>
-#include <map>
 #include <set>
-#include <algorithm>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>			//close()
-#include <fcntl.h>			//fcntl()
-#include <arpa/inet.h>		//htons()
-#include <poll.h>
-#include <unistd.h>			//getopt()
-#include <pthread.h>
-#include <signal.h>
-#include <sys/time.h>
-#include <time.h>
+//#include <sys/time.h>
+//#include <time.h>
+
+#include "servercommon.h"
 
 using namespace std;
-
-bool VERBOSE = false;
-char *EMPTYSTR = (char *)"";
-bool shutdownFlag = false;
-set<int> socks;
 
 /*
  * Handler for SIGINT
@@ -33,6 +15,17 @@ set<int> socks;
 static void sigintHandler(int signum)
 {
 	shutdownFlag = true;
+}
+
+/*
+ * Function for exiting cleanly from either child or main thread
+ */
+void die(string msg, bool isThread=true){
+	cerr << msg;
+	if (isThread)
+		pthread_exit(NULL);
+	else
+		exit(1);
 }
 
 /*
