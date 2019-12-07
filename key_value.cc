@@ -11,6 +11,8 @@
 
 #include "data_types.h"
 
+#define MAX_CHUNK_SIZE  10240   // 10 KB
+
 #ifdef SERIALIZE
 class SerializeCStringHelper {
 public:
@@ -686,6 +688,7 @@ bool get_file_data(get_file_metadata* request, int fd)
 
 
         /** Send the file content now */
+        // TODO: Send the file content in small chunks MAX_CHUNK_SIZE
         send_msg_to_socket(content->file_data, content->file_len, fd);
     }
     else /** column doesn't exist */
@@ -818,6 +821,7 @@ bool process_command(char* command, int len, int fd)
         char* username = strtok(command + strlen("auth"), " ");
         char* password = strtok(NULL, " ");
 
+        printf("received username: %s password: %s\n", username, password);
         bool res = auth_user(username, password);
 
         if (res == SUCCESS)
