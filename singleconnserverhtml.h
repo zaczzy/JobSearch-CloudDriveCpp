@@ -1,12 +1,16 @@
 #ifndef SINGLECONNSERVERHTML_H
 #define SINGLECONNSERVERHTML_H
 
+#include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <set>
-#include <functional>
+#include <map>
+#include <pthread.h>
 
 #include "cookierelay.h"
+#include "backendrelay.h"
 
 using namespace std;
 
@@ -15,7 +19,7 @@ using namespace std;
  */
 class SingleConnServerHTML {
 public:
-	SingleConnServerHTML(int sock, function<void(string, bool)> die, bool VERBOSE, string webroot, CookieRelay *CR);
+	SingleConnServerHTML(int sock, string webroot, CookieRelay *CR, BackendRelay *BR);
 	~SingleConnServerHTML();
 	void backbone();
 private:
@@ -26,14 +30,17 @@ private:
 	void handleGET(bool HEAD);
 	void handlePOST(char *body);
 	void splitHeaderBody(string input, vector<string> *header_list, string *body);
-	function<void(string, bool)> die();
 
-	bool VERBOSE;
 	int sock;
+	int backendSock;
+	pthread_mutex_t *mutex_backendSock;
+	int loadbalancerSock;
+	pthread_mutex_t *mutex_loadbalancerSock;
 	string webroot;
 	string requestURI;
 	string username;
 	CookieRelay *CR;
+	BackendRelay *BR;
 	bool sendCookie;
 	int cookieValue;
 	string redirectTo; //the page a user attempts to visit before redirected to login

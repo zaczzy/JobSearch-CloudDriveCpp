@@ -1,10 +1,13 @@
+#include "servercommon.h"
 #include "cookierelay.h"
 
 /*
  * Constructor
  */
-CookieRelay::CookieRelay() {
+CookieRelay::CookieRelay(int sock): sock(sock){
+	//SETUP LOADBALANCER SOCK HERE
 	latestCookie = -1;
+	mutex_sock = PTHREAD_MUTEX_INITIALIZER;
 }
 
 /*

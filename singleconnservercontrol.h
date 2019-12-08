@@ -1,6 +1,9 @@
 #ifndef SINGLECONNSERVERCONTROL_H
 #define SINGLECONNSERVERCONTROL_H
 
+#include <string>
+#include <set>
+
 using namespace std;
 
 /*
@@ -8,15 +11,13 @@ using namespace std;
  */
 class SingleConnServerControl {
 public:
-	SingleConnServerControl(int sock, function<void(string, bool)> die, bool VERBOSE);
+	SingleConnServerControl(int sock);
 	~SingleConnServerControl();
 	void backbone();
 private:
-	bool VERBOSE;
 	int sock;
 	set<pthread_t> *webThreads;
 	int sendMsg(string msg);
-	function<void(string, bool)> die();
 };
 
 #endif //SINGLECONNSERVERCONTROL_H

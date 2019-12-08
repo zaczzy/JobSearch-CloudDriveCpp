@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <pthread.h>
 
 using namespace std;
 
@@ -14,11 +15,15 @@ using namespace std;
  */
 class CookieRelay {
 public:
-	CookieRelay();
+	CookieRelay(int sock);
 	~CookieRelay();
+	//change genCookie and fetchBrowser to use sockets!!
 	int genCookie(string browser);
 	string fetchBrowser(int cookie);
+
+	pthread_mutex_t mutex_sock;
 private:
+	int sock;
 	int latestCookie;
 	map<int, string> cookie2Browser;
 };

@@ -3,6 +3,7 @@
 
 #include <string>
 #include "cookierelay.h"
+#include "backendrelay.h"
 
 void cleanup();
 //void die(string msg, bool isThread = true);
@@ -21,8 +22,10 @@ const int LOADBALANCER_PORT = 4000;
  */
 struct web_thread_struct {
     int clntSock;
+    int backendSock;
     string webroot;
     CookieRelay *CR;
+    BackendRelay *BR;
 };
 
 /*

@@ -20,7 +20,7 @@ static void sigintHandler(int signum)
 /*
  * Function for exiting cleanly from either child or main thread
  */
-void die(string msg, bool isThread=true){
+void die(string msg, bool isThread){
 	cerr << msg;
 	if (isThread)
 		pthread_exit(NULL);

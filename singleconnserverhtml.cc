@@ -1,15 +1,21 @@
-
 #include <cstring>
 
+#include "servercommon.h"
 #include "singleconnserverhtml.h"
+#include "mailservice.h"
 
 using namespace std;
+
+const int BUFF_SIZE = 2048;
+bool VERBOSE = false;
+char *EMPTYSTR = (char *)"";
+bool shutdownFlag = false;
 
 /*
  * Constructor
  */
-SingleConnServerHTML::SingleConnServerHTML(int sock, function<void(string, bool)> die, bool VERBOSE, string webroot, CookieRelay *CR):
-	sock(sock), die(die), VERBOSE(VERBOSE), webroot(webroot), CR(CR) {
+SingleConnServerHTML::SingleConnServerHTML(int sock, string webroot, CookieRelay *CR, BackendRelay *BR):
+	sock(sock), webroot(webroot), CR(CR), BR(BR) {
 	requestURI = "";
 	sendCookie = false;
 	cookieValue = -1;
@@ -60,7 +66,7 @@ int SingleConnServerHTML::sendMsg(string msg) {
 	char *m = (char *)msg.c_str();
 	int i = write(sock, m, strlen(m));
 	if (shutdownFlag || i < 0)
-		die("Shutdown flag or write fail", sock);
+		die("Shutdown flag or write fail");
 	if (VERBOSE)
 		fprintf(stderr, "[%d][WEB] S: %s", sock, m);
 	return 1;
@@ -128,7 +134,7 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 	ifstream infile(fname);
 	if (!infile) {
 		string msg = "Can't open " + fname + "\n";
-		die(msg, -1);
+		die(msg);
 	}
 	string line;
 	while (getline(infile, line)) {
@@ -217,7 +223,9 @@ void SingleConnServerHTML::handlePOST(char *body) {
 			cout << "BYE" << endl;
 //			string remember = adduser_str + strlen("adduser=");
 			string s_addCmd = "ADD " + user + " " + pass;
-			sendCommand(s_addCmd);
+			pthread_mutex_lock(&(BR->mutex_sock));
+			BR->sendCommand(s_addCmd);
+			pthread_mutex_unlock(&(BR->mutex_sock));
 
 			//redirect to login page
 			//TODO: add message stating account add successful
@@ -229,7 +237,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 
 		//Authenticate
 		string s_authCmd = "AUTH " + user + " " + pass;
-		string authResult = sendCommand(s_authCmd);
+		string authResult = BR->sendCommand(s_authCmd);
 		string okerr = authResult.substr(0,3);
 		//if invalid credentials
 		if (authResult.substr(0,3).compare("+OK") != 0) {
@@ -247,9 +255,9 @@ void SingleConnServerHTML::handlePOST(char *body) {
 
 		sendCookie = true;
 		username = user;
-		pthread_mutex_lock(&mutex_cookieRelay);
+		pthread_mutex_lock(&(CR->mutex_sock));
 		cookieValue = CR->genCookie(username);
-		pthread_mutex_unlock(&mutex_cookieRelay);
+		pthread_mutex_unlock(&(CR->mutex_sock));
 		requestURI = redirectTo;
 		redirectTo = "";
 		handleGET();
@@ -316,7 +324,7 @@ void SingleConnServerHTML::backbone() {
 		memset(c_requestLine, 0, sizeof(c_requestLine));
 
 		if (shutdownFlag)
-			die("shutdown", sock);
+			die("shutdown");
 
 		int i = read(sock, c_requestLine, sizeof(c_requestLine));
 		//read() error
@@ -388,10 +396,10 @@ void SingleConnServerHTML::backbone() {
 		//existing cookie, new connection
 		else if (receivedCookie != -1 && cookieValue == -1) {
 			//login automatically
-			pthread_mutex_lock(&mutex_cookieRelay);
+			pthread_mutex_lock(&(CR->mutex_sock));
 			username = CR->fetchBrowser(cookieValue);
 			cookieValue = CR->genCookie(username);
-			pthread_mutex_unlock(&mutex_cookieRelay);
+			pthread_mutex_unlock(&(CR->mutex_sock));
 		}
 		//no cookie, existing connection
 		else if (receivedCookie == -1 && cookieValue != -1) {

@@ -12,20 +12,21 @@
 #include <signal.h>
 
 #include <string>
+#include <set>
 
 using namespace std;
 
 static void sigintHandler(int signum);
-void die(string msg, bool isThread);
+void die(string msg, bool isThread=true);
 //void cleanup();
 int createServerSocket(unsigned short port);
 int createClientSocket(unsigned short port);
 
-const int BUFF_SIZE = 2048;
-bool VERBOSE = false;
-char *EMPTYSTR = (char *)"";
-bool shutdownFlag = false;
-set<int> socks;
+extern const int BUFF_SIZE = 2048;
+extern bool VERBOSE = false;
+extern char *EMPTYSTR = (char *)"";
+extern bool shutdownFlag = false;
+extern set<int> socks;
 
 
 #endif //SERVERCOMMON_H

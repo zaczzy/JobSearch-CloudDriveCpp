@@ -1,12 +1,19 @@
+#include <cstring>
+
+#include "servercommon.h"
 #include "singleconnservercontrol.h"
 
 using namespace std;
 
+const int BUFF_SIZE = 2048;
+bool VERBOSE = false;
+bool shutdownFlag = false;
+
 /*
  * Constructor
  */
-SingleConnServerControl::SingleConnServerControl(int sock, function<void(string, bool)> die, bool VERBOSE, set<pthread_t> *webThreads):
-	sock(sock), die(die), VERBOSE(VERBOSE) {
+SingleConnServerControl::SingleConnServerControl(int sock, bool VERBOSE):
+	sock(sock), VERBOSE(VERBOSE) {
 
 }
 
@@ -47,7 +54,7 @@ void SingleConnServerControl::backbone() {
 		int i = read(sock, c_requestLine, sizeof(c_requestLine));
 		//read() error
 		if (i < -1)
-			sendStatus(400);
+			break;
 		//client closed connection
 		if (i == 0)
 			break;

@@ -16,14 +16,16 @@
 #include "singleconnserverhtml.h"
 #include "singleconnservercontrol.h"
 #include "cookierelay.h"
-#include "mailservice.h"
 
 using namespace std;
+
+bool VERBOSE = false;
+bool shutdownFlag = false;
+set<int> socks;
 
 int backendSock = -1;
 int loadbalancerSock = -1;
 pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutex_cookieRelay = PTHREAD_MUTEX_INITIALIZER;
 set<pthread_t> webThreads;
 set<pthread_t> controlThreads;
 
@@ -108,31 +110,18 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 }
 
 /*
- * Send command to backend (ritika)
- */
-string sendCommand(string command) {
-	char buff[BUFF_SIZE];
-	pthread_mutex_lock(&mutex_backendSock);
-	write(backendSock, (char *)command.c_str(), command.length());
-	read(backendSock, buff, sizeof(buff));
-	pthread_mutex_unlock(&mutex_backendSock);
-	if (VERBOSE)
-		fprintf(stderr, "%s\n", buff);
-	string result = buff;
-	return result;
-}
-
-/*
  * Callback from main thread upon initialization of worker thread.
  * Initializes a SingleConnServerHTML
  */
 void *webThreadFunc(void *args){
 	struct web_thread_struct *a = (struct web_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
+	int backendSock = (intptr_t)(a->backendSock);
 	string webroot = (string)(a->webroot);
 	CookieRelay *CR = (CookieRelay *)(a->CR);
+	BackendRelay *BR = (BackendRelay *)(a->BR);
 
-	SingleConnServerHTML S(clntSock, die, VERBOSE, webroot, CR);
+	SingleConnServerHTML S(clntSock, webroot, CR, BR);
 	S.backbone();
 	close(clntSock);
 }
@@ -145,7 +134,7 @@ void *controlThreadFunc(void *args){
 	struct control_thread_struct *a = (struct control_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
 
-	SingleConnServerControl S(clntSock, die, VERBOSE);
+	SingleConnServerControl S(clntSock);
 	S.backbone();
 	close(clntSock);
 }
@@ -210,8 +199,10 @@ int main(int argc, char *argv[])
 	socks.insert(backendSock);
 	socks.insert(loadbalancerSock);
 
+	//Relay messages through backend
+	BackendRelay BR(backendSock);
 	//Relay cookies with load balancer
-	CookieRelay CR;
+	CookieRelay CR(loadbalancerSock);
 	while (true) {
 		struct pollfd fds[2];
 		fds[0].fd = webSock;
@@ -237,8 +228,10 @@ int main(int argc, char *argv[])
 
 			struct web_thread_struct args;
 			args.clntSock = clntSock;
+			args.backendSock = backendSock;
 			args.webroot = webIP;
 			args.CR = &CR;
+			args.BR = &BR;
 
 			pthread_t ntid;
 			if (pthread_create(&ntid, NULL, webThreadFunc, (void *)&args) != 0)
