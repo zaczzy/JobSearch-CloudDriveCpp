@@ -1,6 +1,6 @@
 GCC=g++
-CFLAGS=-Wall -g -lpthread #-lboost_serialization  
-OBJ = storage_server.o socket.o  key_value.o thread.o
+CFLAGS=-Wall -g -lpthread -lboost_serialization  
+OBJ = storage_server.o socket.o  key_value.o thread.o logging.o
 
 storage_server: $(OBJ)
 	$(GCC) $^ $(CFLAGS) -o $@ 

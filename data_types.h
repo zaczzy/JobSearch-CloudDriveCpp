@@ -1,7 +1,9 @@
 
 #include <vector>
+#include <string.h>
+#include <stdint.h>
 
-//#define SERIALIZE
+#define SERIALIZE
 
 #ifdef SERIALIZE
 #include <fstream>
@@ -21,6 +23,46 @@
 #define MAX_LEN_EMAIL_BODY  256 // Will change this later
 #define MAX_SIZE_FILE       2048    // WIll change this later
 #define MAX_EMAILS          10      // WIll change this later
+
+#ifdef SERIALIZE
+class SerializeCStringHelper {
+public:
+  SerializeCStringHelper(char*& s) : s_(s) {}
+  SerializeCStringHelper(const char*& s) : s_(const_cast<char*&>(s)) {}
+
+private:
+
+  friend class boost::serialization::access;
+
+  template<class Archive>
+  void save(Archive& ar, const unsigned version) const {
+    bool isNull = (s_ == 0);
+    ar & isNull;
+    if (!isNull) {
+      std::string s(s_);
+      ar & s;
+    }
+  }
+
+  template<class Archive>
+  void load(Archive& ar, const unsigned version) {
+    bool isNull;
+    ar & isNull;
+    if (!isNull) {
+      std::string s;
+      ar & s;
+      s_ = strdup(s.c_str());
+    } else {
+      s_ = 0;
+    }
+  }
+
+  BOOST_SERIALIZATION_SPLIT_MEMBER();
+
+private:
+  char*& s_;
+};
+#endif
 
 #pragma pack(1)
 typedef struct

@@ -13,46 +13,6 @@
 
 #define MAX_CHUNK_SIZE  10240   // 10 KB
 
-#ifdef SERIALIZE
-class SerializeCStringHelper {
-public:
-  SerializeCStringHelper(char*& s) : s_(s) {}
-  SerializeCStringHelper(const char*& s) : s_(const_cast<char*&>(s)) {}
-
-private:
-
-  friend class boost::serialization::access;
-
-  template<class Archive>
-  void save(Archive& ar, const unsigned version) const {
-    bool isNull = (s_ == 0);
-    ar & isNull;
-    if (!isNull) {
-      std::string s(s_);
-      ar & s;
-    }
-  }
-
-  template<class Archive>
-  void load(Archive& ar, const unsigned version) {
-    bool isNull;
-    ar & isNull;
-    if (!isNull) {
-      std::string s;
-      ar & s;
-      s_ = strdup(s.c_str());
-    } else {
-      s_ = 0;
-    }
-  }
-
-  BOOST_SERIALIZATION_SPLIT_MEMBER();
-
-private:
-  char*& s_;
-};
-#endif
-
 typedef enum 
 {
    DRIVE,
@@ -760,6 +720,11 @@ bool store_file(put_file_metadata* request, int fd)
     return SUCCESS;
 }
 
+bool change_password(char* username, char* old_password, char* new_password)
+{
+
+}
+
 bool process_command(char* command, int len, int fd)
 {
     char message[64] = {0};
@@ -808,6 +773,27 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "+OK user deleted", strlen("+OK user deleted"));
         else
             strncpy(message, "-ERR user not deleted", strlen("-ERR user not deleted"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+
+        return SUCCESS;
+    }
+    /** change pw command */
+    else if (strncmp(command, "changepw", strlen("changepw")) == 0 || strncmp(command, "CHANGEPW", strlen("CHANGEPW")) == 0)
+    {
+        char* username = strtok(command + strlen("changepw"), " ");
+        char* old_password = strtok(NULL, " ");
+        char* new_password = strtok(NULL, " ");
+
+        /** Change the password */
+        bool res = change_password(username, old_password, new_password);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK password changed", strlen("+OK password changed"));
+        else
+            strncpy(message, "-ERR unable to change password", strlen("-ERR unable to change password"));
 
         message[strlen(message)] = '\0';
 
@@ -992,6 +978,17 @@ void serialize_tablet_to_file(char* filepath)
 
 }
 
+//void serialize_tablet_row_to_file(char* filepath)
+//{
+//    map_tablet::iterator it;
+//    boost::archive::text_oarchive oa(ofs);
+//    for (it = tablet.begin(); it != tablet.end(); it++)
+//    {
+//        oa << it;
+//    }
+//    ofs.close();
+//}
+
 map_tablet deserialize_tablet_from_file(char* filepath)
 {
    map_tablet new_tablet;
@@ -1002,6 +999,17 @@ map_tablet deserialize_tablet_from_file(char* filepath)
 
    return new_tablet;
 }
+
+//map_tablet deserialize_tablet_row_from_file(char* filepath)
+//{
+//   map_tablet new_tablet;
+//   std::ifstream ifs(filepath);
+//   boost::archive::text_iarchive ia(ifs);
+//   ia >> new_tablet;
+//   ifs.close();
+//
+//   return new_tablet;
+//}
 
 #if 0
 int main()
