@@ -27,9 +27,9 @@ void die(string msg, bool isThread){
 
 /*
  * Create a server socket. Make it reusable and nonblocking.
- * IP not needed?
+ * IP eventually needed?
  */
-int createServerSocket(char *IP, unsigned short port){
+int createServerSocket(unsigned short port){
 	int servSock;
 	struct sockaddr_in servAddr;
 

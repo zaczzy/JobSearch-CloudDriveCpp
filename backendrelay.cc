@@ -10,6 +10,13 @@ BackendRelay::BackendRelay(int sock): masterSock(sock) {
 }
 
 /*
+ * Destructor
+ */
+BackendRelay::~BackendRelay() {
+
+}
+
+/*
  * Send command to backend (ritika)
  */
 string BackendRelay::sendCommand(string command) {
