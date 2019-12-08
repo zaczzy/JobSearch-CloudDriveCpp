@@ -9,24 +9,23 @@
 #include <poll.h>
 #include <unistd.h>			//getopt()
 #include <pthread.h>
-#include <signal.h>
+#include <signal.h>			//pthread_kill()
 
 #include <string>
 #include <set>
 
 using namespace std;
 
-static void sigintHandler(int signum);
+//static void sigintHandler(int signum);
 void die(string msg, bool isThread=true);
 //void cleanup();
 int createServerSocket(unsigned short port);
 int createClientSocket(unsigned short port);
 
-extern const int BUFF_SIZE = 2048;
-extern bool VERBOSE = false;
-extern char *EMPTYSTR = (char *)"";
-extern bool shutdownFlag = false;
-extern set<int> socks;
+extern const int BUFF_SIZE;
+extern bool VERBOSE;
+extern char *EMPTYSTR;
+extern bool shutdownFlag;
 
 
 #endif //SERVERCOMMON_H

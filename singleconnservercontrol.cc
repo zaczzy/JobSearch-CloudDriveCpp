@@ -5,15 +5,15 @@
 
 using namespace std;
 
-const int BUFF_SIZE = 2048;
-bool VERBOSE = false;
-bool shutdownFlag = false;
+//const int BUFF_SIZE = 2048;
+//bool VERBOSE;
+//bool shutdownFlag = false;
 
 /*
  * Constructor
  */
-SingleConnServerControl::SingleConnServerControl(int sock, bool VERBOSE):
-	sock(sock), VERBOSE(VERBOSE) {
+SingleConnServerControl::SingleConnServerControl(int sock):
+	sock(sock){
 
 }
 

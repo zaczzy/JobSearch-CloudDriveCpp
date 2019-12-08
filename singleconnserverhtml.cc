@@ -6,10 +6,10 @@
 
 using namespace std;
 
-const int BUFF_SIZE = 2048;
-bool VERBOSE = false;
-char *EMPTYSTR = (char *)"";
-bool shutdownFlag = false;
+//const int BUFF_SIZE = 2048;
+//bool VERBOSE = false;
+//char *EMPTYSTR = (char *)"";
+//bool shutdownFlag = false;
 
 /*
  * Constructor

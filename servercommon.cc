@@ -9,13 +9,10 @@
 
 using namespace std;
 
-/*
- * Handler for SIGINT
- */
-static void sigintHandler(int signum)
-{
-	shutdownFlag = true;
-}
+const int BUFF_SIZE = 2048;
+bool VERBOSE = false;
+char *EMPTYSTR = (char *)"";
+bool shutdownFlag = false;
 
 /*
  * Function for exiting cleanly from either child or main thread

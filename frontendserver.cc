@@ -16,18 +16,28 @@
 #include "singleconnserverhtml.h"
 #include "singleconnservercontrol.h"
 #include "cookierelay.h"
+#include "backendrelay.h"
 
 using namespace std;
 
-bool VERBOSE = false;
-bool shutdownFlag = false;
-set<int> socks;
+//bool VERBOSE = false;
+//bool shutdownFlag;
+//set<int> socks;
 
 int backendSock = -1;
 int loadbalancerSock = -1;
 pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
 set<pthread_t> webThreads;
 set<pthread_t> controlThreads;
+set<int> socks;
+
+/*
+ * Handler for SIGINT
+ */
+static void sigintHandler(int signum)
+{
+	shutdownFlag = true;
+}
 
 ///*
 // * Struct for passing request params
@@ -75,21 +85,21 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 		string controlAddr;
 
 		//split web server and config server address
-		int pos1 = line.find(",");
+		unsigned int pos1 = line.find(",");
 		if (pos1 == std::string::npos)
 			die("Invalid config file");
 		webAddr = line.substr(0,pos1);
 		controlAddr = line.substr(pos1+1);
 
 		//parse web server IP and port
-		int pos2 = webAddr.find(":");
+		unsigned int pos2 = webAddr.find(":");
 		if (pos2 == std::string::npos)
 			die("Invalid address in config file");
 		string wIP = webAddr.substr(0,pos2);
 		int wPort = stoi(webAddr.substr(pos2+1));
 
 		//parse control server IP and port
-		int pos3 = controlAddr.find(":");
+		unsigned int pos3 = controlAddr.find(":");
 		if (pos3 == std::string::npos)
 			die("Invalid address in config file");
 		string cIP = controlAddr.substr(0,pos3);
@@ -116,7 +126,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 void *webThreadFunc(void *args){
 	struct web_thread_struct *a = (struct web_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
-	int backendSock = (intptr_t)(a->backendSock);
+//	int backendSock = (intptr_t)(a->backendSock);
 	string webroot = (string)(a->webroot);
 	CookieRelay *CR = (CookieRelay *)(a->CR);
 	BackendRelay *BR = (BackendRelay *)(a->BR);
@@ -143,7 +153,7 @@ int main(int argc, char *argv[])
 {
 
 	int c;
-	int N = 0;
+//	int N = 0;
 //	int webPort = 8000;
 //	string webroot = "localhost";
 
@@ -228,7 +238,7 @@ int main(int argc, char *argv[])
 
 			struct web_thread_struct args;
 			args.clntSock = clntSock;
-			args.backendSock = backendSock;
+//			args.backendSock = backendSock;
 			args.webroot = webIP;
 			args.CR = &CR;
 			args.BR = &BR;
