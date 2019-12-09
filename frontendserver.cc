@@ -191,10 +191,9 @@ int main(int argc, char *argv[])
 	string controlIP;
 	int controlPort;
 	readConfig_fes(configFile, configID, &webIP, &webPort, &controlIP, &controlPort);
-	cout << webIP << webPort << controlIP << controlPort << endl;
 
 	if (VERBOSE)
-		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webIP.c_str(), controlPort);
+		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webIP.c_str(), webPort);
 
 	//Server socket for webclients
 	int webSock = createServerSocket(webPort);

@@ -291,12 +291,10 @@ void SingleConnServerHTML::handlePOST(char *body) {
  * Get headers and body from an HTTP request.
  */
 void SingleConnServerHTML::splitHeaderBody(string input, vector<string> *header_list, string *body) {
-	cout << "hi1" << endl;
 	//deal with body
 	unsigned int i_endheaders = input.find("\r\n\r\n");
 	*body = input.substr(i_endheaders+strlen("\r\n\r\n"));
 
-	cout << "hi2" << endl;
 	//deal with headers (leave an \r\n for easier iteration below)
 	string headers = input.substr(0,i_endheaders+2);
 	unsigned int i_endline;
@@ -304,7 +302,6 @@ void SingleConnServerHTML::splitHeaderBody(string input, vector<string> *header_
 	while((i_endline = remainingHeaders.find("\r\n")) != std::string::npos) {
 		cerr << i_endline;
 		string line = remainingHeaders.substr(0,i_endline);
-//		cout << "hi3" << i++ << line << endl;
 		remainingHeaders = remainingHeaders.substr(i_endline+strlen("\r\n"));
 		if (remainingHeaders.length() == 0)
 			break;
