@@ -68,7 +68,7 @@ void SingleConnServerControl::backbone() {
 		//parse requestLine
 		string req;
 		string reqBody;
-		int i_space = requestLine.find(" ");
+		unsigned int i_space = requestLine.find(" ");
 		if (i_space == std::string::npos) {
 			req = requestLine.substr(0);
 			reqBody = "";

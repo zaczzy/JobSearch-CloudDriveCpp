@@ -37,7 +37,7 @@ struct tm * timeinfo;
 int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd) {
   int valid = FAILURE;    //Defensive programming
   char send_msg[1000];
-  char recv_msg[1000];
+//  char recv_msg[1000];
 //Invokes backend to enquire about user
   if(user == NULL) {
     printf("Invalid user\n");
@@ -58,8 +58,8 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       printf("SHOW_MAIL in core\n");
 #endif
       printf("User: %s\n\n", user);
-      char subject[20] = "My struggles";
-      char date[20] = "Sept 1st, 3:14";
+//      char subject[20] = "My struggles";
+//      char date[20] = "Sept 1st, 3:14";
 #ifdef DEBUG
       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tUser inbox\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<ol>\n\t\t<li>\n\t\t\tInbox:\n\t\t\t<ul>\n\t\t\t\t<li><pre> <b>Charles Aranguiz</b>  My struggles  Monday 4th <button> Read me </button> </pre> </li>\n\t\t\t\t<li><pre> <b>%s</b>   %s   %s  <button> Read me> </button> </pre> </li>\n\t\t\t\t<li>grandpa</li>\n\t\t\t</ul>\n\t\t\t</li>\n\t\t</ol>\n\t\n\n</body>\n\n</html>\r\n", user, subject, date);
 #endif
@@ -109,6 +109,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
     }break;
   }//switch between email options
 
+  return 0;
 }
 
 
@@ -146,8 +147,8 @@ int send_email(char * user, char *rcpt_user, char *mail_msg, int server_fd, char
 int validateUser(char *user) {
 
   char send_msg[1000];
-  char recv_msg[1000];
-  int failure;
+//  char recv_msg[1000];
+  int failure = 0;
   sprintf(send_msg, "get <%s>", user);
 //  send(backend, send_msg, strlen(send_msg));
 
@@ -165,7 +166,7 @@ int validateUser(char *user) {
 int validateMailId(char *user, uint16_t mailId) {
 
   char send_msg[1000];
-  char recv_msg[1000];
+//  char recv_msg[1000];
   sprintf(send_msg, "validatemail <%s> <%d>", user, mailId);
   char validateMsg[10];
  // send(send_msg);
@@ -195,6 +196,8 @@ int deleteEmail(char *user, uint16_t mailId, int server_fd, char recv_msg[]) {
 #endif
   printf("%s\n", (char *)recv_msg);
   
+  return 0;
+
 }
 
 int downloadEmail(char *user, uint16_t mailId, int server_fd, char email_body[]) {
@@ -238,9 +241,11 @@ int retrieveMailHeader(char *user, int server_fd) {
   printf("username: %s\n", (char *)resp.username);
   printf("num_emails: %d\n", (int)resp.num_emails);
 #endif
-  for(int i=0 ; i < resp.num_emails ; i++) {
+  for(int i=0 ; i < (int)(resp.num_emails) ; i++) {
     
   printf("From: %s To: %s Subject: %s, date: %s\n", resp.email_headers[i].from,  resp.email_headers[i].to,  resp.email_headers[i].subject,  resp.email_headers[i].date);
 
   }
+
+  return 0;
 }

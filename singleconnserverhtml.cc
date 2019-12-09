@@ -291,19 +291,27 @@ void SingleConnServerHTML::handlePOST(char *body) {
  * Get headers and body from an HTTP request.
  */
 void SingleConnServerHTML::splitHeaderBody(string input, vector<string> *header_list, string *body) {
+	cout << "hi1" << endl;
 	//deal with body
-	int i_endheaders = input.find("\r\n\r\n");
+	unsigned int i_endheaders = input.find("\r\n\r\n");
 	*body = input.substr(i_endheaders+strlen("\r\n\r\n"));
 
+	cout << "hi2" << endl;
 	//deal with headers (leave an \r\n for easier iteration below)
 	string headers = input.substr(0,i_endheaders+2);
-	int i_endline;
+	unsigned int i_endline;
 	string remainingHeaders = headers;
 	while((i_endline = remainingHeaders.find("\r\n")) != std::string::npos) {
+		cerr << i_endline;
 		string line = remainingHeaders.substr(0,i_endline);
+//		cout << "hi3" << i++ << line << endl;
 		remainingHeaders = remainingHeaders.substr(i_endline+strlen("\r\n"));
+		if (remainingHeaders.length() == 0)
+			break;
+		cout << "{" << remainingHeaders << "}" << endl;
 		header_list->push_back(line);
 	}
+	cout << "phuk";
 }
 
 /*
@@ -333,9 +341,9 @@ void SingleConnServerHTML::backbone() {
 		//client closed connection
 		if (i == 0)
 			break;
-
 		if (VERBOSE)
 			fprintf(stderr, "[%d][WEB] C: {%s}\n", sock, c_requestLine);
+
 
 		//from strtok single character delimiter, modify in-place, char * hell to string paradise
 		string requestLine = c_requestLine;

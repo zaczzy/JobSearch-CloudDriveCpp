@@ -26,7 +26,7 @@ using namespace std;
 
 int backendSock = -1;
 int loadbalancerSock = -1;
-pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
 set<pthread_t> webThreads;
 set<pthread_t> controlThreads;
 set<int> socks;
@@ -75,7 +75,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 	ifstream infile(configFile);
 	if (!infile)
 		die("Can't open config file");
-	int lineno = 1;
+	int lineno = 0;
 	string line;
 	while (getline(infile, line)) {
 		if (lineno++ != configID)
@@ -105,10 +105,10 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 		string cIP = controlAddr.substr(0,pos3);
 		int cPort = stoi(controlAddr.substr(pos3+1));
 
-		webIP = &wIP;
-		webPort = &wPort;
-		controlIP = &cIP;
-		controlPort = &cPort;
+		*webIP = wIP;
+		*webPort = wPort;
+		*controlIP = cIP;
+		*controlPort = cPort;
 
 //		struct sockaddr_in servAddr;
 //		bzero(&servAddr, sizeof(servAddr));
@@ -191,6 +191,7 @@ int main(int argc, char *argv[])
 	string controlIP;
 	int controlPort;
 	readConfig_fes(configFile, configID, &webIP, &webPort, &controlIP, &controlPort);
+	cout << webIP << webPort << controlIP << controlPort << endl;
 
 	if (VERBOSE)
 		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webIP.c_str(), controlPort);
@@ -202,7 +203,7 @@ int main(int argc, char *argv[])
 	//Client socket for backend
 	backendSock = createClientSocket(BACKEND_PORT);
 	//Client socket for load balancer (for cookies??)
-	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
+//	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
 
 	socks.insert(webSock);
 	socks.insert(controlSock);
