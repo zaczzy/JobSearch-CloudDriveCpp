@@ -268,7 +268,6 @@ int store_email(put_mail_request* request)
     // TODO: Check NULL
     strncpy(content->email_body, request->email_body, request->email_len);
     *(content->header) = request->header;
-    content->header->email_id = email_id;
     content->email_id = email_id;
 
     col.content = content; 
@@ -619,6 +618,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
 }
 #endif
 
+#if 0
 int get_file_data(get_file_metadata* request, int fd)
 {
     get_file_metadata response;
@@ -724,6 +724,7 @@ bool store_file(put_file_metadata* request, int fd)
 
     return SUCCESS;
 }
+#endif
 
 bool change_password(char* username, char* old_password, char* new_password)
 {
@@ -880,6 +881,7 @@ bool process_command(char* command, int len, int fd)
 
         return SUCCESS;
     }
+#if 0
     /** put file command */
     else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
     {
@@ -919,6 +921,7 @@ bool process_command(char* command, int len, int fd)
         
         return SUCCESS;
     }
+#endif
     /** get mail body command */
     else if (strncmp(command, "mailbody", 8) == 0 || strncmp(command, "MAILBODY", 8) == 0)
     {
