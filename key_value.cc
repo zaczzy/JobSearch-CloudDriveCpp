@@ -10,6 +10,10 @@
 #include "socket.h"
 
 #include "data_types.h"
+#include "error.h"
+
+#define MAX_CHUNK_SIZE      10240   // 10 KB TODO: Check with Zach
+#define MAX_TABLET_USERS    100     // TODO: Check with team 
 
 typedef enum 
 {
@@ -17,42 +21,113 @@ typedef enum
    MAIL
 }column_type;
 
-class hash_fn{
-public:
-
-    std::string operator()(const email_header& header) const
-    {
-        return std::string(header.date) + std::string(header.subject);
-    }
-};
-
 typedef struct
 {
-    //uint64_t num_emails;
     unsigned long email_id;
     email_header* header;
     char* email_body;
-    //std::vector<email_header*> header_list;
-    //std::vector<char*> body_list;
+    unsigned long body_len;
+    
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & email_id;
+       ar & header;
+       ar & body_len;
+       SerializeCStringHelper helper(email_body);
+       ar & helper; 
+   }
+#endif
 }mail_content;
-
-// TODO: For later use
-//typedef struct
-//{
-//    uint64_t num_emails;
-//    std::unordered_map<email_header, char*, hash_fn> email_list;
-//}mail_content;
 
 typedef struct
 {
     uint64_t file_len;
     char* file_data;
+    
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & file_len;
+       SerializeCStringHelper helper(file_data);
+       ar & helper; 
+   }
+#endif
 }file_content;
+
+#ifdef SERIALIZE
+class VoidPtrHelper {
+public:
+  VoidPtrHelper(column_type& _type, void*& _content) : type(_type), content(_content) {}
+
+private:
+
+  friend class boost::serialization::access;
+
+  template<class Archive>
+  void save(Archive& ar, const unsigned version) const {
+    
+      ar & type;
+      if (type == MAIL)
+      {
+        file_content* f_content = (file_content*)content;
+        ar & f_content;
+      }
+      else if (type == DRIVE)
+      {
+        mail_content* m_content = (mail_content*)content;
+        ar & m_content;
+      }
+  }
+
+  template<class Archive>
+  void load(Archive& ar, const unsigned version) {
+      column_type type;
+      ar & type;
+      if (type == MAIL)
+      {
+        file_content* f_content;
+        ar & f_content;
+        content = f_content;
+      }
+      else if (type == DRIVE)
+      {
+        mail_content* m_content;
+        ar & m_content;
+        content = m_content;
+      }
+  }
+
+  BOOST_SERIALIZATION_SPLIT_MEMBER();
+
+private:
+ column_type& type;
+ void*& content;
+};
+#endif
 
 typedef struct
 {
     column_type type;
     void* content;
+
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & type;
+       VoidPtrHelper vp_helper(type, content);
+       ar & vp_helper;
+   }
+#endif
 }tablet_column;
 
 typedef std::unordered_map<std::string, tablet_column> map_tablet_row;
@@ -63,6 +138,20 @@ typedef struct
     unsigned long num_emails;
     unsigned long num_files;
     map_tablet_row columns;
+
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & email_id;
+       ar & password;
+       ar & num_emails;
+       ar & num_files;
+       ar & columns;
+   }
+#endif
 }tablet_row;
 
 typedef std::unordered_map<std::string, tablet_row> map_tablet;
@@ -72,8 +161,11 @@ extern bool verbose;
 /** Map to store key value pairs */
 map_tablet tablet; 
 
-bool add_user(char* username, char* password)
+int add_user(char* username, char* password)
 {
+    if (tablet.size() == MAX_TABLET_USERS)
+        return ERR_EXCEEDED_MAX_TABLET_USER_LIMIT;
+
     map_tablet::iterator itr;
     
     /** Check if this username already exists */
@@ -82,7 +174,7 @@ bool add_user(char* username, char* password)
         if (verbose)
             printf("user %s already exists\n", username);
 
-        return FAILURE;
+        return ERR_USER_ALREADY_EXISTS;
     }
 
     /** Add a new user with this username and password */
@@ -98,7 +190,7 @@ bool add_user(char* username, char* password)
     return SUCCESS;
 }
 
-bool delete_user(char* username, char* password)
+int delete_user(char* username, char* password)
 {
     map_tablet::iterator itr;
     
@@ -108,7 +200,7 @@ bool delete_user(char* username, char* password)
         if (verbose)
             printf("user %s doesn't exist\n", username);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** Delete the user with this username */
@@ -127,7 +219,7 @@ bool auth_user(char* username, char* password)
         if (verbose)
             printf("user %s doesn't exist\n", username);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** verify password */
@@ -139,11 +231,11 @@ bool auth_user(char* username, char* password)
         return SUCCESS;
     }
 
-    return FAILURE;
+    return ERR_WRONG_PASSWORD;
 }
 
 #if 1
-bool store_email(put_mail_request* request)
+int store_email(put_mail_request* request)
 {
     char* row = request->username;
 
@@ -155,7 +247,7 @@ bool store_email(put_mail_request* request)
         if (verbose)
             printf("no row with username %s exists\n", row);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** Generate the ID for this email */
@@ -176,6 +268,7 @@ bool store_email(put_mail_request* request)
     // TODO: Check NULL
     strncpy(content->email_body, request->email_body, request->email_len);
     *(content->header) = request->header;
+    content->header->email_id = email_id;
     content->email_id = email_id;
 
     col.content = content; 
@@ -261,7 +354,7 @@ bool store_email(put_mail_request* request)
 #endif
 
 #if 1
-bool get_email_list(get_mail_request* request, get_mail_response* response)
+int get_email_list(get_mail_request* request, get_mail_response* response)
 {
     char* row = request->username;
 
@@ -273,7 +366,7 @@ bool get_email_list(get_mail_request* request, get_mail_response* response)
         if (verbose)
             printf("no row with username %s exists\n", row);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
     unsigned long num_emails = itr->second.num_emails;
 
@@ -357,7 +450,7 @@ bool get_email_list(get_mail_request* request, get_mail_response* response)
 #endif
 
 #if 1
-bool delete_mail(delete_mail_request* request)
+int delete_mail(delete_mail_request* request)
 {
     char* row = request->username;
     unsigned long email_id = request->email_id;
@@ -370,7 +463,7 @@ bool delete_mail(delete_mail_request* request)
         if (verbose)
             printf("no row with username %s exists\n", row);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** check if this email_id  exists */
@@ -386,7 +479,7 @@ bool delete_mail(delete_mail_request* request)
     {
         if (verbose)
             printf("no email with id %lu exists\n", email_id);
-        return FAILURE;
+        return ERR_INVALID_EMAILID;
     }
 
    return SUCCESS;
@@ -434,7 +527,7 @@ bool delete_mail(delete_mail_request* request)
 #endif
 
 #if 1
-bool get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
+int get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
 {
     char* row = request->username;
     unsigned long email_id = request->email_id;
@@ -447,7 +540,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
         if (verbose)
             printf("no row with username %s exists\n", row);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** check if this email id exists */
@@ -472,7 +565,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
     {
         if (verbose)
             printf("no email with id %lu  exists\n", email_id);
-        return FAILURE;
+        return ERR_INVALID_EMAILID;
     }
     
    return SUCCESS; 
@@ -526,7 +619,7 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
 }
 #endif
 
-bool get_file_data(get_file_metadata* request, int fd)
+int get_file_data(get_file_metadata* request, int fd)
 {
     get_file_metadata response;
     char* row = request->username;
@@ -540,7 +633,7 @@ bool get_file_data(get_file_metadata* request, int fd)
         if (verbose)
             printf("no row with username %s exists\n", row);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** check if this column exists */
@@ -560,13 +653,14 @@ bool get_file_data(get_file_metadata* request, int fd)
 
 
         /** Send the file content now */
+        // TODO: Send the file content in small chunks MAX_CHUNK_SIZE
         send_msg_to_socket(content->file_data, content->file_len, fd);
     }
     else /** column doesn't exist */
     {
         if (verbose)
             printf("no column with %s exists\n", column);
-        return FAILURE;
+        return ERR_FILE_DOESNT_EXIST;
     }
     
    return SUCCESS; 
@@ -585,7 +679,7 @@ bool store_file(put_file_metadata* request, int fd)
         if (verbose)
             printf("no row with username %s exists\n", row);
 
-        return FAILURE;
+        return ERR_USER_DOESNT_EXIST;
     }
 
     /** Check if this column exists */
@@ -595,7 +689,7 @@ bool store_file(put_file_metadata* request, int fd)
         // TODO: Allow to change existing file later
         if (verbose)
             printf("A column with this filename already exists\n");
-        return FAILURE;
+        return ERR_FILE_ALREADY_EXISTS;
     }
     else /** Create a column with the given email ID */
     {
@@ -631,6 +725,11 @@ bool store_file(put_file_metadata* request, int fd)
     return SUCCESS;
 }
 
+bool change_password(char* username, char* old_password, char* new_password)
+{
+
+}
+
 bool process_command(char* command, int len, int fd)
 {
     char message[64] = {0};
@@ -653,12 +752,14 @@ bool process_command(char* command, int len, int fd)
         char* password = strtok(NULL, " ");
 
         /** Add the user */
-        bool res = add_user(username, password);
+        int res = add_user(username, password);
 
         if (res == SUCCESS)
             strncpy(message, "+OK user added", strlen("+OK user added"));
-        else
-            strncpy(message, "-ERR can't add user", strlen("-ERR can't add user"));
+        else if (res == ERR_EXCEEDED_MAX_TABLET_USER_LIMIT)
+            strncpy(message, "-ERR max user limit exceeded", strlen("-ERR max user limit exceeded"));
+        else if (res == ERR_USER_ALREADY_EXISTS)
+            strncpy(message, "-ERR user already exists", strlen("-ERR user already exists"));
 
         message[strlen(message)] = '\0';
 
@@ -673,12 +774,35 @@ bool process_command(char* command, int len, int fd)
         char* password = strtok(NULL, " ");
 
         /** Delete the user */
-        bool res = delete_user(username, password);
+        int res = delete_user(username, password);
 
         if (res == SUCCESS)
             strncpy(message, "+OK user deleted", strlen("+OK user deleted"));
-        else
-            strncpy(message, "-ERR user not deleted", strlen("-ERR user not deleted"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+
+        return SUCCESS;
+    }
+    /** change pw command */
+    else if (strncmp(command, "changepw", strlen("changepw")) == 0 || strncmp(command, "CHANGEPW", strlen("CHANGEPW")) == 0)
+    {
+        char* username = strtok(command + strlen("changepw"), " ");
+        char* old_password = strtok(NULL, " ");
+        char* new_password = strtok(NULL, " ");
+
+        /** Change the password */
+        int res = change_password(username, old_password, new_password);
+
+        if (res == SUCCESS)
+            strncpy(message, "+OK password changed", strlen("+OK password changed"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+        else if (res == ERR_INCORRECT_OLD_PASSWORD)
+            strncpy(message, "-ERR old password is incorrect", strlen("-ERR old password is incorrect"));
 
         message[strlen(message)] = '\0';
 
@@ -692,12 +816,15 @@ bool process_command(char* command, int len, int fd)
         char* username = strtok(command + strlen("auth"), " ");
         char* password = strtok(NULL, " ");
 
-        bool res = auth_user(username, password);
+        printf("received username: %s password: %s\n", username, password);
+        int res = auth_user(username, password);
 
         if (res == SUCCESS)
             strncpy(message, "+OK user authenticated", strlen("+OK user authenticated"));
-        else
-            strncpy(message, "-ERR user not authenticated", strlen("-ERR user not authenticated"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+        else if (res == ERR_WRONG_PASSWORD)
+            strncpy(message, "-ERR incorrect password", strlen("-ERR incorrect password"));
 
         message[strlen(message)] = '\0';
 
@@ -713,12 +840,12 @@ bool process_command(char* command, int len, int fd)
         put_mail_request* mail_request = (put_mail_request*)command;
 
         /** Store the new mail */
-        bool res = store_email(mail_request);
+        int res = store_email(mail_request);
 
         if (res == SUCCESS)
             strncpy(message, "+OK email stored", strlen("+OK email stored"));
-        else
-            strncpy(message, "-ERR can't store email", strlen("-ERR can't store email"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
 
         message[strlen(message)] = '\0';
 
@@ -735,7 +862,7 @@ bool process_command(char* command, int len, int fd)
         get_mail_response response;
 
         /** Get mails */
-        bool res = get_email_list(mail_request, &response);
+        int res = get_email_list(mail_request, &response);
 
         if (res == SUCCESS)
         {
@@ -743,9 +870,12 @@ bool process_command(char* command, int len, int fd)
         }
         else
         {
-            strncpy(message, "-ERR can't get email", strlen("-ERR can't get email"));
-            message[strlen(message)] = '\0';
-            send_msg_to_socket(message, strlen(message), fd);
+            if (res == ERR_USER_DOESNT_EXIST)
+            {
+                strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+                message[strlen(message)] = '\0';
+                send_msg_to_socket(message, strlen(message), fd);
+            }
         }
 
         return SUCCESS;
@@ -756,12 +886,14 @@ bool process_command(char* command, int len, int fd)
         put_file_metadata* file_request = (put_file_metadata*)command;
 
         /** Store the new file */
-        bool res = store_file(file_request, fd);
+        int res = store_file(file_request, fd);
         
         if (res == SUCCESS)
             strncpy(message, "+OK file stored", strlen("+OK file stored"));
-        else
-            strncpy(message, "-ERR can't store file", strlen("-ERR can't store file"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+        else if (res == ERR_FILE_ALREADY_EXISTS)
+            strncpy(message, "-ERR file already exists", strlen("-ERR file already exists"));
 
         message[strlen(message)] = '\0';
 
@@ -775,15 +907,16 @@ bool process_command(char* command, int len, int fd)
         get_file_metadata* file_request = (get_file_metadata*)command;
 
         /** Get file data */
-        bool res = get_file_data(file_request, fd);
+        int res = get_file_data(file_request, fd);
 
-        if (res != SUCCESS)
-        {
-            strncpy(message, "-ERR can't get file", strlen("-ERR can't get file"));
-            message[strlen(message)] = '\0';
-            send_msg_to_socket(message, strlen(message), fd);
-        }
+        if (res == ERR_FILE_DOESNT_EXIST)
+            strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
 
+        message[strlen(message)] = '\0';
+        send_msg_to_socket(message, strlen(message), fd);
+        
         return SUCCESS;
     }
     /** get mail body command */
@@ -795,7 +928,7 @@ bool process_command(char* command, int len, int fd)
         get_mail_body_response response;
 
         /** Get the mail body */
-        bool res = get_mail_body(req, &response);
+        int res = get_mail_body(req, &response);
         
         if (res == SUCCESS)
         {
@@ -803,7 +936,11 @@ bool process_command(char* command, int len, int fd)
         }
         else
         {
-            strncpy(message, "-ERR can't get mail body", strlen("-ERR can't get mail body"));
+            if (res == ERR_INVALID_EMAILID)
+                strncpy(message, "-ERR invalid email ID", strlen("-ERR invalid email ID"));
+            else if (res == ERR_USER_DOESNT_EXIST)
+                strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+            
             message[strlen(message)] = '\0';
             send_msg_to_socket(message, strlen(message), fd);
         }
@@ -819,16 +956,14 @@ bool process_command(char* command, int len, int fd)
         delete_mail_request* req = (delete_mail_request*)command;
 
         /** Delete mail */
-        bool res = delete_mail(req);
+        int res = delete_mail(req);
         
         if (res == SUCCESS)
-        {
             strncpy(message, "+Ok deleted email", strlen("+Ok deleted email"));
-        }
-        else
-        {
-            strncpy(message, "-ERR can't delete email", strlen("-ERR can't delete email"));
-        }
+        else if (res == ERR_INVALID_EMAILID)
+            strncpy(message, "-ERR invalid email ID", strlen("-ERR invalid email ID"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
         
         message[strlen(message)] = '\0';
         send_msg_to_socket(message, strlen(message), fd);
@@ -852,3 +987,97 @@ bool process_command(char* command, int len, int fd)
    return FAILURE;
 }
 
+#ifdef SERIALIZE
+void serialize_tablet_to_file(char* filepath)
+{
+   std::ofstream ofs(filepath);
+   boost::archive::text_oarchive oa(ofs);
+   oa << tablet;
+   ofs.close();
+
+}
+
+//void serialize_tablet_row_to_file(char* filepath)
+//{
+//    map_tablet::iterator it;
+//    boost::archive::text_oarchive oa(ofs);
+//    for (it = tablet.begin(); it != tablet.end(); it++)
+//    {
+//        oa << it;
+//    }
+//    ofs.close();
+//}
+
+map_tablet deserialize_tablet_from_file(char* filepath)
+{
+   map_tablet new_tablet;
+   std::ifstream ifs(filepath);
+   boost::archive::text_iarchive ia(ifs);
+   ia >> new_tablet;
+   ifs.close();
+
+   return new_tablet;
+}
+
+//map_tablet deserialize_tablet_row_from_file(char* filepath)
+//{
+//   map_tablet new_tablet;
+//   std::ifstream ifs(filepath);
+//   boost::archive::text_iarchive ia(ifs);
+//   ia >> new_tablet;
+//   ifs.close();
+//
+//   return new_tablet;
+//}
+
+#if 0
+int main()
+{
+    /** Populate map with data */
+    tablet_row row;
+    row.email_id = std::string("ritika");
+    row.password = std::string("pass");
+    row.num_emails = 0;
+    row.num_files = 1;
+    
+    tablet_column col;
+    col.type = MAIL;
+
+    file_content f_content;
+    f_content.file_len = 6;
+    f_content.file_data = (char*)malloc(6);
+    strcpy(f_content.file_data, "abcde");
+    
+    col.content = &f_content;
+    row.columns.insert(std::make_pair(std::string("col1"), col));
+
+    tablet.insert(std::make_pair("row1", row));
+
+    serialize_tablet_to_file("map.serial");
+    
+    map_tablet new_tablet;
+    new_tablet = deserialize_tablet_from_file("map.serial");
+
+    map_tablet::iterator it;
+    for(it = new_tablet.begin(); it != new_tablet.end(); it++)
+    {
+        printf("row key : %s\n", it->first.c_str());
+        printf("email id : %s\n", it->second.email_id.c_str());
+        printf("password: %s\n", it->second.password.c_str());
+        printf("num emails: %lu\n", it->second.num_emails);
+        printf("num files: %lu\n", it->second.num_files);
+
+        map_tablet_row::iterator it_col;
+
+        for (it_col = it->second.columns.begin(); it_col != it->second.columns.end(); it_col++)
+        {
+            printf("col key: %s\n", it_col->first.c_str());
+            printf("type val : %u\n", it_col->second.type);
+            file_content* content = (file_content*)it_col->second.content;;
+            printf("col content: file len : %lu\n", content->file_len);
+            printf("col content: file data : %s\n", content->file_data);
+        }
+    }
+}
+#endif
+#endif
