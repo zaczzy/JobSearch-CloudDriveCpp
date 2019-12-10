@@ -2,9 +2,13 @@
 
 #include <stdlib.h>
 #include <fstream>
+#include <vector>
 
 #define LOG_FILE    "key_value.log"
 
+std::vector<log_entry> log_entry_table;
+
+#if 0
 log_entry* prepare_log_entry(char* username, op_type type, void* metadata, char* data)
 {
     log_entry* entry = (log_entry*)malloc(sizeof(log_entry) * sizeof(char));
@@ -87,19 +91,49 @@ log_entry* prepare_log_entry(char* username, op_type type, void* metadata, char*
 
     return entry;
 }
+#endif
 
 #ifdef SERIALIZE
-int log_entry_to_file(log_entry entry)
+int add_log_entry(log_entry entry)
 {
+#if 1
+    log_entry_table.push_back(entry);
+#else
     /** Serialize entry and write to file */
     std::ofstream ofs(LOG_FILE);
     boost::archive::text_oarchive oa(ofs);
     oa << entry;
     ofs.close();
+#endif
 }
 #endif
 
 int replay_log()
 {
+    std::vector<log_entry>::iterator itr;
 
+    for(itr = log_entry_table.begin(); itr != log_entry_table.end(); itr++)
+    {
+        //log_entry* entry = (log_entry*)(*itr);
+        //switch((*itr)->type)
+        //{
+        //    case ADD_FILE:
+        //        break;
+        //    case ADD_EMAIL:
+        //        break;
+        //    case ADD_USER:
+        //        break;
+        //    case CHNG_PW:
+        //        break;
+        //    case DELETE_FILE:
+        //        break;
+        //    case DELETE_EMAIL:
+        //        break;
+        //    case DELETE_USER:
+        //        break;
+        //    default:
+        //        break;
+
+        //}
+    }
 }

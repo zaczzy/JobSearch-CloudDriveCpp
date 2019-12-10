@@ -16,6 +16,13 @@ typedef enum
     DELETE_USER 
 }op_type;
 
+#if 1
+typedef struct
+{
+    op_type type;
+    void* request;
+}log_entry;
+#else
 typedef struct 
 { 
     char username[32];
@@ -37,6 +44,7 @@ typedef struct
    }
 #endif
 }log_entry;
+#endif
 
 typedef struct
 {

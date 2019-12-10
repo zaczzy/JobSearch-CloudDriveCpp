@@ -708,7 +708,7 @@ bool store_file(put_file_metadata* request, int fd)
         unsigned int len_read = 0;
         while (len_read != request->file_len)
         {
-            len_read += read(fd, data, request->file_len - len_read);
+            len_read += read(fd, data + len_read, request->file_len - len_read);
         }
 
         content->file_len = request->file_len;

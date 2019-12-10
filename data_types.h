@@ -164,6 +164,13 @@ typedef struct
     char filename[256];
 }get_file_request;
 
+#pragma pack(1)
+typedef struct
+{
+    char prefix[9]; // Should be "filelist"
+    char username[32];
+}get_file_list;
+
 //#pragma pack(1)
 //typedef struct
 //{
