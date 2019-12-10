@@ -43,10 +43,23 @@ typedef struct
 #endif
 }mail_content;
 
+typedef struct 
+{
+    bool type;
+    char name[1024];
+}fd_entry;
+
 typedef struct
 {
+    bool type;  // 0 - Directory, 1 - File
+    
+    /** If it is a file */
     uint64_t file_len;
     char* file_data;
+
+    /** If it is a directory */
+    uint64_t num_files;
+    std::vector<fd_entry> entry;
     
 #ifdef SERIALIZE
     friend class boost::serialization::access;
@@ -665,11 +678,17 @@ int get_file_data(get_file_metadata* request, int fd)
     
    return SUCCESS; 
 }
+#endif
 
-bool store_file(put_file_metadata* request, int fd)
+bool store_file(put_file_request* request, int fd)
 {
     char* row = request->username;
-    char* column = request->filename;
+
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    snprintf(full_path, "%s/%s", request->directory_path, request->filename);
+
+    char* column = full_path;
 
     map_tablet::iterator itr;
     
@@ -682,14 +701,12 @@ bool store_file(put_file_metadata* request, int fd)
         return ERR_USER_DOESNT_EXIST;
     }
 
+#if 0
     /** Check if this column exists */
     map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
     {
-        // TODO: Allow to change existing file later
-        if (verbose)
-            printf("A column with this filename already exists\n");
-        return ERR_FILE_ALREADY_EXISTS;
+        // TODO: Append to this file to change existing file later
     }
     else /** Create a column with the given email ID */
     {
@@ -721,10 +738,9 @@ bool store_file(put_file_metadata* request, int fd)
         if (verbose)
             printf("Added column %s to row %s\n", column, row);
     }
-
+#endif
     return SUCCESS;
 }
-#endif
 
 bool change_password(char* username, char* old_password, char* new_password)
 {
@@ -881,11 +897,10 @@ bool process_command(char* command, int len, int fd)
 
         return SUCCESS;
     }
-#if 0
     /** put file command */
     else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
     {
-        put_file_metadata* file_request = (put_file_metadata*)command;
+        put_file_request* file_request = (put_file_request*)command;
 
         /** Store the new file */
         int res = store_file(file_request, fd);
@@ -894,8 +909,6 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "+OK file stored", strlen("+OK file stored"));
         else if (res == ERR_USER_DOESNT_EXIST)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-        else if (res == ERR_FILE_ALREADY_EXISTS)
-            strncpy(message, "-ERR file already exists", strlen("-ERR file already exists"));
 
         message[strlen(message)] = '\0';
 
@@ -903,6 +916,7 @@ bool process_command(char* command, int len, int fd)
             
         return SUCCESS;
     }
+#if 0
     /** get file command */
     else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
     {
