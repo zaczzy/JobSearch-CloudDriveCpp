@@ -11,6 +11,14 @@
 #define CELLSIZE 1000
 #define RECV_SIZE 256
 
+/*  
+*  Enum defining webmail options
+*  SHOW_MAIL = 0
+*  READ_MAIL = 1
+*  SEND_MAIL = 2
+*  DELETE_MAIL = 3
+*/
+
 enum mail_opt {
     
     SHOW_MAIL =0,
@@ -20,19 +28,22 @@ enum mail_opt {
 
 }mOpt;
 
-
-struct email_data {
-
- uint16_t email_ID; 
- char Date[50];
- char Sender[30];
- char Message[CELLSIZE];
-
-};
-
 time_t rawtime;
 struct tm * timeinfo;
 
+/*
+*  Core webmail functionality that interfaces with
+*  front end and communicates with backend logic.
+*  args:
+*  @mailOpt : Mail option as described in enum
+*  @user : The user whose account we are in
+*  @email_id: Indicates a specific email in the user inbox
+*  @mail_msg: An email message used in send
+*  @rcpt_user: The recipient of the email being sent
+*  @html_response: Contains the response to frontend
+*  @server_fd: File descriptor used to connect to backend
+*  @resp: Contains inbox values that is parsed by frontend
+*/  
 
 int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd, get_mail_response *resp) {
   int valid = FAILURE;    //Defensive programming
@@ -64,7 +75,6 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tUser inbox\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<ol>\n\t\t<li>\n\t\t\tInbox:\n\t\t\t<ul>\n\t\t\t\t<li><pre> <b>Charles Aranguiz</b>  My struggles  Monday 4th <button> Read me </button> </pre> </li>\n\t\t\t\t<li><pre> <b>%s</b>   %s   %s  <button> Read me> </button> </pre> </li>\n\t\t\t\t<li>grandpa</li>\n\t\t\t</ul>\n\t\t\t</li>\n\t\t</ol>\n\t\n\n</body>\n\n</html>\r\n", user, subject, date);
 #endif
   //    strcpy(html_response, send_msg);
-<<<<<<< HEAD
       retrieveMailHeader(user, server_fd, resp);
 
     }break;
@@ -74,7 +84,6 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       printf("READ_MAIL in core\n");
 #endif
        char email_body[MAX_LEN_EMAIL_BODY];
-<<<<<<< HEAD
        downloadEmail(user, email_id, mail_msg, server_fd, email_body);
        sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tEMAIL\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<h1>\n\t\t\tInbox:\n\t\t\t</h1>\n\t\t\t\t<p>%s</p>\n\t\n\n</body>\n\n</html>\r\n", email_body);
        strcpy((char *)html_response, send_msg);
@@ -112,7 +121,11 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
   }//switch between email options
 
 }
-
+  
+/*  
+*  Function to send email between users within 
+*  the system
+*/  
 
 int send_email(char * user, char *rcpt_user, char *mail_msg, int server_fd, char recv_msg[]) {
 
@@ -167,19 +180,23 @@ int validateUser(char *user) {
 int validateMailId(char *user, uint16_t mailId) {
 
   char send_msg[1000];
-<<<<<<< HEAD
   char recv_msg[1000];
   sprintf(send_msg, "validatemail <%s> <%d>", user, mailId);
   char validateMsg[10];
  // send(send_msg);
  // recv(validatedMsg);
-/*
+
   if(validateMsg != "SUCCESS")
     return FAILURE;
   else  
     return SUCCESS;
-*/
+
 }
+
+/*
+*  Function that deletes entry
+*  specified by @mailId
+*/  
 
 int deleteEmail(char *user, uint16_t mailId, char *msg, int server_fd, char recv_msg[]) {
 
@@ -197,10 +214,15 @@ int deleteEmail(char *user, uint16_t mailId, char *msg, int server_fd, char recv
   printf("email_id: %s\n", (char *)mail_resp.email_id);
 #endif
   printf("%s\n", (char *)recv_msg);
-
-  return 0;
+  
 }
 
+/*
+*  Function that reads an email
+*  specified by @mailId and sends
+*  this data to frontend in an HTML
+*  format.
+*/  
 int downloadEmail(char *user, uint16_t mailId, char *msg, int server_fd, char email_body[]) {
 
   get_mail_body_request mail_req;
@@ -224,4 +246,32 @@ int downloadEmail(char *user, uint16_t mailId, char *msg, int server_fd, char em
   strcpy(email_body, mail_resp.mail_body);
 
   return 0;
+}
+
+/*
+*  Function that reads all mail
+*  headers and sends the data to
+*  frontend for populating the 
+*  inbox page of the user
+*/  
+int retrieveMailHeader(char *user, int server_fd, get_mail_response *resp) {
+
+  get_mail_request request;
+  
+  strcpy(request.prefix, "getmail");
+  strcpy(request.username, user);
+
+  send(server_fd, &request, sizeof(get_mail_request), 0);
+  
+  recv(server_fd, (get_mail_response *)resp, sizeof(get_mail_response), 0);
+  printf("\t\t\t\t\tINBOX\n\n\n");
+#ifdef DEBUG
+  printf("username: %s\n", (char *)resp->username);
+  printf("num_emails: %d\n", (int)resp->num_emails);
+#endif
+  for(int i=0 ; i < resp->num_emails ; i++) {
+    
+  printf("From: %s To: %s Subject: %s, date: %s\n", resp->email_headers[i].from,  resp->email_headers[i].to,  resp->email_headers[i].subject,  resp->email_headers[i].date);
+
+  }
 }

@@ -1,19 +1,56 @@
-GCC=g++
-CFLAGS=-Wall -g -lpthread -lboost_serialization  
-OBJ = storage_server.o socket.o  key_value.o thread.o logging.o
+TARGETS = mailclient storage_server
+OBJS_POP3 = pop3_thread.o pop3.o
+OBJS_SMTP = smtp_thread.o smtp.o
+CC=g++
+CFLAGS=-std=c++11 -lpthread
 
-storage_server: $(OBJ)
-	$(GCC) $^ $(CFLAGS) -o $@ 
+all: $(TARGETS)
 
-%.o: %.c 
-	$(CC) -c -o $@ $< $(CFLAGS)
+storage_server: storage_server.cc socket.cc thread.cc key_value.cc
+	$(CC) $^ $(CFLAGS) -o $@
+
+echoserver: echothread.o echoserver.o
+	$(CC) $^ -lpthread -o $@
+
+echoserver.o: echoserver.c 
+	$(CC) -c $^ -g -lpthread -o $@
+
+echothread.o: echothread.c 
+	$(CC) -c $^ -g -o $@
+
+mailclient: mailclient.o mailservice.o
+	$(CC) $^ -o $@
+
+mailclient.o: mailclient.c
+	$(CC) -c $^ -g -o $@
+
+mailservice.o: mailservice.c
+	$(CC) -c $^ -g -o $@
+
+smtp: $(OBJS_SMTP)
+	$(CC) $^ -lpthread -g -o $@
+ 
+smtp.o: smtp.c 
+	$(CC) -c $^ -g -lpthread -o $@
+
+smtp_thread.o: smtp_thread.c 
+	$(CC) -c $^ -g -o $@
+
+pop3: $(OBJS_POP3)
+	$(CC) $^ -lpthread -g -o $@
+
+pop3.o: pop3.c 
+	$(CC) -c $^ -g -lpthread -o $@
+
+pop3_thread.o: pop3_thread.c 
+	$(CC) -c $^ -g -o $@
 
 pack:
 	rm -f submit-hw2.zip
-	zip -r cis505-project.zip *.cc *.h README Makefile
+	zip -r submit-hw2.zip *.cc README Makefile
 
 clean::
-	rm -fv $(TARGETS) *~ main *.o storage_server
+	rm -fv $(TARGETS) *~ *.o
 
 realclean:: clean
-	rm -fv cis505-project.zip
+	rm -fv cis505-hw2.zip
