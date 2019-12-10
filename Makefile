@@ -3,7 +3,7 @@ CFLAGS=-Wall -g -pthread
 #OBJ = frontendserver.o servercommon.o singleconnserverhtml.o \
 #singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o #loadbalancer.o
 
-TARGETS = frontendserver
+TARGETS = cloud
 #TARGETS = servercommon frontendserver singleconnserverhtml singleconnservercontrol \
 #	cookierelay backendrelay mailservice
 #
@@ -15,7 +15,7 @@ all: $(TARGETS)
 %.o: %.cc %.h
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-frontendserver: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o
+cloud: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o storage_server.o socket.o  key_value.o thread.o logging.o
 	$(CC) $(CFLAGS) $^ -o $@
 	
 #singleconnserverhtml: singleconnserverhtml.o servercommon.o mailservice.o
