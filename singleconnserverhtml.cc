@@ -175,7 +175,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 	else if (requestURI.compare("/mail/inbox.html") == 0) {
 		//SHOW_MAIL
 		char c_HTML[BUFF_SIZE];
-		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
+//		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
 		HTML = c_HTML;
 		HTML = readHTMLFromFile("templates/mail.html");
 	}
@@ -184,7 +184,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		//URL format: /mail/m[email_id]
 		string email_id = requestURI.substr(strlen("/mail/m"));
 		char c_HTML[BUFF_SIZE];
-		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
+//		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
 		HTML = c_HTML;
 	}
 	else if (requestURI.compare("/storage.html") == 0) {
@@ -274,7 +274,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 
 		//throwaway buffer
 		char b[BUFF_SIZE];
-		webserver_core(2, (char*)username.c_str(), -1, (char *)msg.c_str(), (char *)rcpt.c_str(), b, backendSock);
+//		webserver_core(2, (char*)username.c_str(), -1, (char *)msg.c_str(), (char *)rcpt.c_str(), b, backendSock);
 		//handle differently on failure?
 	}
 	if (requestURI.compare("/delete_mail") == 0) {
@@ -282,7 +282,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		//parse data e.g. emailid=777
 		string email_id = body + strlen("emailid=");
 		char b[BUFF_SIZE];
-		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, backendSock);
+//		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, backendSock);
 		//handle differently on failure?
 	}
 }
