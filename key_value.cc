@@ -70,6 +70,8 @@ typedef struct
        ar & file_len;
        SerializeCStringHelper helper(file_data);
        ar & helper; 
+       ar & num_files;
+       // TODO: Serialize vector
    }
 #endif
 }file_content;
@@ -631,7 +633,103 @@ bool get_mail_body(get_mail_body_request* request, get_mail_body_response* respo
 }
 #endif
 
-#if 0
+int delete_file(delete_file_request* request)
+{
+    char* row = request->username;
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    sprintf(full_path, "%s/%s", request->directory_path, request->filename);
+
+    char* column = full_path;
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        itr->second.columns.erase(row_itr);
+    }
+    else /** column doesn't exist */
+    {
+        if (verbose)
+            printf("no column with %s exists\n", column);
+        return ERR_FILE_DOESNT_EXIST;
+    }
+    
+   return SUCCESS; 
+    
+}
+
+#if 1
+int get_file_data(get_file_request* request, int fd)
+{
+    char* row = request->username;
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    sprintf(full_path, "%s/%s", request->directory_path, request->filename);
+
+    char* column = full_path;
+
+
+    map_tablet::iterator itr;
+    
+    /** check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        tablet_column* col = &(row_itr->second);
+        file_content* content = (file_content*)col->content;
+        
+        get_file_response response;
+        uint64_t bytes_sent = 0;
+
+        while (bytes_sent != content->file_len)
+        {
+            if ((content->file_len - bytes_sent) > CHUNK_SIZE)
+            {
+                response.has_more = true;
+                strncpy(response.chunk, content->file_data, CHUNK_SIZE);
+                bytes_sent += CHUNK_SIZE;
+            }
+            else
+            {
+                response.has_more = false;
+                strncpy(response.chunk, content->file_data, content->file_len);
+                bytes_sent += content->file_len;
+            }
+        
+            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+        }
+    }
+    else /** column doesn't exist */
+    {
+        if (verbose)
+            printf("no column with %s exists\n", column);
+        return ERR_FILE_DOESNT_EXIST;
+    }
+    
+   return SUCCESS; 
+}
+#else
 int get_file_data(get_file_metadata* request, int fd)
 {
     get_file_metadata response;
@@ -680,6 +778,80 @@ int get_file_data(get_file_metadata* request, int fd)
 }
 #endif
 
+#if 1
+bool store_file(put_file_request* request, int fd)
+{
+    char* row = request->username;
+
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    sprintf(full_path, "%s/%s", request->directory_path, request->filename);
+
+    char* column = full_path;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** Check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        /** Append to this file */
+        file_content* content = (file_content*)row_itr->second.content;
+        
+        char* new_data = (char*)realloc(content->file_data, request->chunk_len + content->file_len);
+
+        if (new_data == NULL)
+        {
+            if (verbose)
+                printf("Malloc failed while reallocating memory for file data\n");
+            return ERR_MALLOC_FAILED;
+        }
+
+        snprintf(new_data, content->file_len + request->chunk_len, "%s%s", content->file_data, request->data);
+        content->file_data = new_data;
+        content->file_len += request->chunk_len;
+        
+        if (verbose)
+            printf("Added column %s to row %s\n", column, row);
+    }
+    else /** Create a column with the given email ID */
+    {
+        /** Add the new column to this row */
+        tablet_column col;
+        col.type = MAIL;
+
+        /** Add the new file */
+        file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
+        // TODO: Check NULL
+
+        char* data = (char*)malloc(request->chunk_len * sizeof(char));
+        // TODO: Check NULL
+        
+        /** Read the data */
+        strncpy(data, request->data, request->chunk_len);
+
+        content->file_len = request->chunk_len;
+        content->file_data = data;
+
+        col.content = content; 
+        /** Add the entry to the map */
+        itr->second.columns.insert(std::make_pair(std::string(column), col));
+
+        if (verbose)
+            printf("Added column %s to row %s\n", column, row);
+    }
+    return SUCCESS;
+}
+#else
 bool store_file(put_file_request* request, int fd)
 {
     char* row = request->username;
@@ -701,7 +873,6 @@ bool store_file(put_file_request* request, int fd)
         return ERR_USER_DOESNT_EXIST;
     }
 
-#if 0
     /** Check if this column exists */
     map_tablet_row:: iterator row_itr; 
     if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
@@ -738,11 +909,26 @@ bool store_file(put_file_request* request, int fd)
         if (verbose)
             printf("Added column %s to row %s\n", column, row);
     }
-#endif
     return SUCCESS;
 }
+#endif
 
 bool change_password(char* username, char* old_password, char* new_password)
+{
+    // TODO:    
+}
+
+int create_folder(create_folder_request* request)
+{
+
+}
+
+int get_folder_content(get_folder_content_request* request, int fd)
+{
+
+}
+
+int delete_folder(delete_folder_content_request* request)
 {
 
 }
@@ -897,45 +1083,6 @@ bool process_command(char* command, int len, int fd)
 
         return SUCCESS;
     }
-    /** put file command */
-    else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
-    {
-        put_file_request* file_request = (put_file_request*)command;
-
-        /** Store the new file */
-        int res = store_file(file_request, fd);
-        
-        if (res == SUCCESS)
-            strncpy(message, "+OK file stored", strlen("+OK file stored"));
-        else if (res == ERR_USER_DOESNT_EXIST)
-            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-
-        message[strlen(message)] = '\0';
-
-        send_msg_to_socket(message, strlen(message), fd);
-            
-        return SUCCESS;
-    }
-#if 0
-    /** get file command */
-    else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
-    {
-        get_file_metadata* file_request = (get_file_metadata*)command;
-
-        /** Get file data */
-        int res = get_file_data(file_request, fd);
-
-        if (res == ERR_FILE_DOESNT_EXIST)
-            strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
-        else if (res == ERR_USER_DOESNT_EXIST)
-            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-
-        message[strlen(message)] = '\0';
-        send_msg_to_socket(message, strlen(message), fd);
-        
-        return SUCCESS;
-    }
-#endif
     /** get mail body command */
     else if (strncmp(command, "mailbody", 8) == 0 || strncmp(command, "MAILBODY", 8) == 0)
     {
@@ -988,6 +1135,157 @@ bool process_command(char* command, int len, int fd)
         return SUCCESS;
 
     }
+    /** put file command */
+    else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
+    {
+        put_file_request* file_request = (put_file_request*)command;
+
+        /** Store the new file */
+        int res = store_file(file_request, fd);
+        
+        if (res == SUCCESS)
+            strncpy(message, "+OK file stored", strlen("+OK file stored"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+            
+        return SUCCESS;
+    }
+    /** get file command */
+    else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
+    {
+        get_file_request* file_request = (get_file_request*)command;
+
+        /** Get file data */
+        int res = get_file_data(file_request, fd);
+
+        if (res == ERR_FILE_DOESNT_EXIST)
+            strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
+    /** delete file command */
+    else if (strncmp(command, "delfile", 7) == 0 || strncmp(command, "DELFILE", 7) == 0)
+    {
+        delete_file_request* file_request = (delete_file_request*)command;
+
+        /** Store the new file */
+        int res = delete_file(file_request);
+        
+        if (res == SUCCESS)
+            strncpy(message, "+OK file deleted", strlen("+OK file deleted"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+        else if (res == ERR_FILE_DOESNT_EXIST)
+            strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+            
+        return SUCCESS;
+    }
+    /** get folder command */
+    else if (strncmp(command, "getfolder", 9) == 0 || strncmp(command, "GETFOLDER", 9) == 0)
+    {
+        get_folder_content_request* folder_request = (get_folder_content_request*)command;
+
+        /** Get file data */
+        int res = get_folder_content(folder_request, fd);
+
+        if (res == ERR_FILE_DOESNT_EXIST)
+            strncpy(message, "-ERR folder doesn't exist", strlen("-ERR folder doesn't exist"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
+    /** create folder command */
+    else if (strncmp(command, "mkfolder", 8) == 0 || strncmp(command, "MKFOLDER", 8) == 0)
+    {
+        create_folder_request* folder_request = (create_folder_request*)command;
+
+        /** Get file data */
+        int res = create_folder(folder_request);
+
+        if (res == ERR_FILE_ALREADY_EXISTS)
+            strncpy(message, "-ERR folder already exist", strlen("-ERR folder already exist"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
+    /** delete folder command */
+    else if (strncmp(command, "delfolder", 9) == 0 || strncmp(command, "DELFOLDER", 9) == 0)
+    {
+        delete_folder_content_request* del_request = (delete_folder_content_request*)command;
+
+        /** Get file data */
+        int res = delete_folder(del_request);
+
+        if (res == ERR_FILE_DOESNT_EXIST)
+            strncpy(message, "-ERR folder doesn't exist", strlen("-ERR folder doesn't exist"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
+#if 0
+    /** put file command */
+    else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
+    {
+        put_file_request* file_request = (put_file_request*)command;
+
+        /** Store the new file */
+        int res = store_file(file_request, fd);
+        
+        if (res == SUCCESS)
+            strncpy(message, "+OK file stored", strlen("+OK file stored"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+
+        send_msg_to_socket(message, strlen(message), fd);
+            
+        return SUCCESS;
+    }
+    /** get file command */
+    else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
+    {
+        get_file_metadata* file_request = (get_file_metadata*)command;
+
+        /** Get file data */
+        int res = get_file_data(file_request, fd);
+
+        if (res == ERR_FILE_DOESNT_EXIST)
+            strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
+#endif
     else
     {
         if (verbose)

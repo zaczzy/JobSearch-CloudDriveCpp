@@ -106,6 +106,7 @@ typedef struct {
   char username[32];
   char directory_path[1024];
   char filename[256];
+  uint64_t chunk_len;
   char data[CHUNK_SIZE];
 } put_file_request;
 

@@ -10,5 +10,6 @@
 #define ERR_FILE_DOESNT_EXIST                   6
 #define ERR_FILE_ALREADY_EXISTS                 7
 #define ERR_INCORRECT_OLD_PASSWORD              8
+#define ERR_MALLOC_FAILED                       9
 
 #endif
