@@ -50,6 +50,48 @@ typedef enum
     DIRECTORY_TYPE
 }file_type;
 
+typedef struct fd_entry fd_entry;
+#ifdef SERIALIZE
+class VectorHelper {
+public:
+  VectorHelper(std::vector<fd_entry>& _vect) : vect(_vect) {}
+
+private:
+
+  friend class boost::serialization::access;
+
+  template<class Archive>
+  void save(Archive& ar, const unsigned version) const 
+  {  
+      ar & vect.size();
+      for(int i = 0 ; i < vect.size(); i++)
+      {
+          ar & vect[i];
+      }
+  }
+
+  template<class Archive>
+  void load(Archive& ar, const unsigned version) 
+  {
+       int vect_size;
+       ar & vect_size;
+
+       for (int i = 0; i < vect_size; i++)
+       {
+           fd_entry entry;
+           ar & entry;
+           vect.push_back(entry);
+       }
+  }
+
+  BOOST_SERIALIZATION_SPLIT_MEMBER();
+
+private:
+  std::vector<fd_entry>& vect;
+};
+#endif
+
+
 typedef struct fd_entry 
 {
     file_type type;
@@ -60,6 +102,17 @@ typedef struct fd_entry
     {
         return (m.type == type && ((strncmp(m.name, name, strlen(name))) == 0));
     }
+
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & type;
+       ar & name; 
+   }
+#endif
 }fd_entry;
 
 typedef struct
@@ -84,6 +137,7 @@ typedef struct
        SerializeCStringHelper helper(file_data);
        ar & helper; 
        ar & num_files;
+       VectorHelper vect_helper(entry);
        ar & entry;
    }
 #endif
@@ -139,7 +193,6 @@ private:
  void*& content;
 };
 #endif
-
 typedef struct
 {
     column_type type;
