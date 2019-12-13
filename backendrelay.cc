@@ -29,3 +29,7 @@ string BackendRelay::sendCommand(string command) {
 	return result;
 }
 
+int BackendRelay::getSock() {
+	return masterSock;
+}
+

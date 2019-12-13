@@ -16,6 +16,7 @@ public:
 	BackendRelay(int sock);
 	~BackendRelay();
 	string sendCommand(string command);
+	int getSock(); //dumb
 
 	pthread_mutex_t mutex_sock;
 private:

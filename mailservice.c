@@ -264,15 +264,16 @@ int retrieveMailHeader(char *user, int server_fd, get_mail_response *resp) {
 
   send(server_fd, &request, sizeof(get_mail_request), 0);
   
-  recv(server_fd, (get_mail_response *)resp, sizeof(get_mail_response), 0);
+  int i = recv(server_fd, (get_mail_response *)resp, sizeof(get_mail_response), 0);
+  printf(">>>>BackendSocket %d, recv #bytes %d, # emails %u ", server_fd, i, resp->num_emails);
 //  printf("\t\t\t\t\tINBOX\n\n\n");
 #ifdef DEBUG
   printf("username: %s\n", (char *)resp->username);
   printf("num_emails: %d\n", (int)resp->num_emails);
 #endif
-  for(int i=0 ; i < resp->num_emails ; i++) {
-    
-  printf("From: %s To: %s Subject: %s, date: %s\n", resp->email_headers[i].from,  resp->email_headers[i].to,  resp->email_headers[i].subject,  resp->email_headers[i].date);
-
-  }
+//  for(int i=0 ; i < resp->num_emails ; i++) {
+//
+//  printf("From: %s To: %s Subject: %s, date: %s\n", resp->email_headers[i].from,  resp->email_headers[i].to,  resp->email_headers[i].subject,  resp->email_headers[i].date);
+//
+//  }
 }

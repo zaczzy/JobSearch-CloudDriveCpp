@@ -73,7 +73,7 @@ typedef struct
 
 }login_request;
 
-#pragma pack(1)
+//#pragma pack(1)
 struct email_header 
 {
     char from[64];

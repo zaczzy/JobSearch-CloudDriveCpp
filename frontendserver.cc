@@ -149,6 +149,10 @@ void *controlThreadFunc(void *args){
 	close(clntSock);
 }
 
+/*
+ * Run command:
+ * $ ./cloud config_fes.txt 1 -v
+ */
 int main(int argc, char *argv[])
 {
 

@@ -8,7 +8,7 @@ TARGETS = cloud
 all: $(TARGETS)
 
 %.o: %.cc %.h
-	$(CC) $(CFLAGS) -o $@ -c $<
+	$(CC) $(CFLAGS) -ggdb -o $@ -c $<
 
 cloud: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o 
 	$(CC) $(CFLAGS) $^ -o $@

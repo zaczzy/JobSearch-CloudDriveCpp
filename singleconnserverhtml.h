@@ -34,10 +34,6 @@ private:
 	string generateInbox(get_mail_response *resp);
 
 	int sock;
-	int backendSock;
-	pthread_mutex_t *mutex_backendSock;
-	int loadbalancerSock;
-	pthread_mutex_t *mutex_loadbalancerSock;
 	string webroot;
 	string requestURI;
 	string username;

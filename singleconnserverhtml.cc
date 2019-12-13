@@ -146,8 +146,13 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 }
 
 string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
-	string HTML = "";
-	for (email_header head: resp->email_headers) {
+	if (VERBOSE)
+		fprintf(stderr, "[%d][WEB] S: Generating Inbox... [localhost]\r\n", sock);
+	string HTML = "<html><body><h1>Inbox</h1>"
+			"<a href='/mail/compose'>Send Mail</a><br><br>";
+	cout << resp->num_emails << "aaa" << endl;
+	for (int i=0; i < (int)(resp->num_emails); i++) {
+		email_header head = resp->email_headers[i];
 		string from = head.from;
 		string subject = head.subject;
 		string date = head.date;
@@ -156,12 +161,13 @@ string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
 				"<button type='submit'>View</button></form>";
 		string deleteButton = "<form action='/delete_mail' method='post' style='display:inline;'>"
 				"<button type='submit' name='emailid' value='" + email_id + "'>Delete</button></form>";
-		HTML += "<html><body>"
-				"<div> From: <" + from + ">" +
+		HTML += "<div> From: <" + from + ">" +
 				"Subject: " + subject + " at " + date +
-				viewMailButton + deleteButton + "</div>" +
-				"</body></html>";
+				viewMailButton + deleteButton + "</div>";
 	}
+	if ((int)(resp->num_emails) == 0)
+		HTML += "*crickets chirping*";
+	HTML += "</body></html>";
 	return HTML;
 }
 
@@ -196,7 +202,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		//SHOW_MAIL
 		char c_HTML[BUFF_SIZE]; //unused
 		get_mail_response resp;
-		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, backendSock, &resp);
+		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, BR->getSock(), &resp);
 		HTML = generateInbox(&resp);
 //		HTML = readHTMLFromFile("templates/mail.html");
 	}
@@ -208,7 +214,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		//URL format: /mail/m[email_id]
 		string email_id = requestURI.substr(strlen("/mail/m"));
 		char c_HTML[BUFF_SIZE];
-		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, backendSock, NULL);
+		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, BR->getSock(), NULL);
 		HTML = c_HTML;
 	}
 	else if (requestURI.compare("/storage.html") == 0) {
@@ -286,30 +292,30 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		redirectTo = "";
 		handleGET();
 	}
-	//from some kind of compose_email.html ??
 	if (requestURI.compare("/send_mail") == 0) {
 		//SEND_MAIL
 		//parse data e.g. msg=NoobDown&rcpt=Me
 		const char *delim = "&\n";
 		char *c_rcpt = strtok(body, delim);
+		char *c_subj = strtok(NULL, delim);
 		char *c_msg = strtok(NULL, delim);
-		string rcpt = c_rcpt + strlen("rcpt=");
-		string msg = c_msg + strlen("msg=");
+		string to = c_rcpt + strlen("to=");
+		string subject = c_subj + strlen("subject=");
+		string message = c_msg + strlen("message=");
 
-		//throwaway buffer
-		char b[BUFF_SIZE];
-//		webserver_core(2, (char*)username.c_str(), -1, (char *)msg.c_str(), (char *)rcpt.c_str(), b, backendSock, NULL);
-		//handle differently on failure?
+		char b[BUFF_SIZE]; //unused
+		webserver_core(2, (char*)username.c_str(), -1, (char *)message.c_str(), (char *)to.c_str(), b, BR->getSock(), NULL);
+		requestURI = "/mail/inbox";
+		handleGET();
 	}
 	if (requestURI.compare("/delete_mail") == 0) {
 		//DELETE_MAIL
 		//parse data e.g. emailid=777
 		string email_id = body + strlen("emailid=");
-		char b[BUFF_SIZE];
-		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, backendSock, NULL);
+		char b[BUFF_SIZE]; //unused //handle differently on failure?
+		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, BR->getSock(), NULL);
 		requestURI = "/mail/inbox";
 		handleGET();
-		//handle differently on failure?
 	}
 }
 
@@ -415,6 +421,7 @@ void SingleConnServerHTML::backbone() {
 		}
 		//existing cookie, existing connection
 		if (receivedCookie != -1 && cookieValue != -1) {
+			cout << "(A)" << endl;
 			//check matching cookies
 			if (receivedCookie != cookieValue) {
 				sendStatus(401);
@@ -422,24 +429,28 @@ void SingleConnServerHTML::backbone() {
 			}
 		}
 		//existing cookie, new connection
+		//SECURITY FAIL
 		else if (receivedCookie != -1 && cookieValue == -1) {
-			//login automatically
-			pthread_mutex_lock(&(CR->mutex_sock));
-			username = CR->fetchBrowser(cookieValue);
-			cookieValue = CR->genCookie(username);
-			pthread_mutex_unlock(&(CR->mutex_sock));
+			cout << "(B)" << endl;
+			//login automatically: will only work when cookie server is separate from singleconnserverhtml
+			//for now, just proceed (manual login)
+//			pthread_mutex_lock(&(CR->mutex_sock));
+//			username = CR->fetchBrowser(receivedCookie);
+//			cookieValue = receivedCookie;//CR->genCookie(username);
+//			pthread_mutex_unlock(&(CR->mutex_sock));
 		}
 		//no cookie, existing connection
 		else if (receivedCookie == -1 && cookieValue != -1) {
+			cout << "(C)" << endl;
 			//logout scenario
 			//possibly unnecessary to handle here,
 			//if logout is handled properly elsewhere
 		}
 		//no cookie, new connection
 		else if (receivedCookie == -1 && cookieValue == -1) {
+			cout << "(D)" << endl;
 			//standard case; just proceed
 		}
-
 
 		if (req.compare("GET") == 0)
 			handleGET();
