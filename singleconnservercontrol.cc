@@ -79,7 +79,7 @@ void SingleConnServerControl::backbone() {
 		}
 
 		//deal with different commands
-		if (req.compare("LOAD") == 0) {
+		if (req.compare("GETLOAD") == 0) {
 			int load = webThreads->size();
 			string msg = to_string(load);
 			sendMsg(msg);

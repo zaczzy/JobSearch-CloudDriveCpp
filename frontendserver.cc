@@ -32,6 +32,24 @@ set<pthread_t> controlThreads;
 set<int> socks;
 
 /*
+ * Struct for passing multiple parameters to webThreadFunc()
+ */
+struct web_thread_struct {
+    int clntSock;
+//    int backendSock;
+    string webroot;
+    CookieRelay *CR;
+    BackendRelay *BR;
+};
+
+/*
+ * Struct for passing multiple parameters to controlThreadFunc()
+ */
+struct control_thread_struct {
+    int clntSock;
+};
+
+/*
  * Handler for SIGINT
  */
 static void sigintHandler(int signum)
@@ -84,7 +102,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 		string webAddr;
 		string controlAddr;
 
-		//split web server and config server address
+		//split web server and control server address
 		unsigned int pos1 = line.find(",");
 		if (pos1 == std::string::npos)
 			die("Invalid config file");
@@ -151,7 +169,7 @@ void *controlThreadFunc(void *args){
 
 /*
  * Run command:
- * $ ./cloud config_fes.txt 1 -v
+ * $ ./cloud 1 -v
  */
 int main(int argc, char *argv[])
 {
@@ -206,7 +224,7 @@ int main(int argc, char *argv[])
 	//Client socket for backend
 	backendSock = createClientSocket(BACKEND_PORT);
 	//Client socket for load balancer (for cookies??)
-//	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
+	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
 
 	socks.insert(webSock);
 	socks.insert(controlSock);
@@ -226,7 +244,7 @@ int main(int argc, char *argv[])
 		int ret = poll(fds, 1, 500);
 		//poll error
 		if (ret == -1)
-			die("Poll error");
+			die("Poll error", false);
 		//web socket
 		else if (fds[0].revents & POLLIN) { //Possibly change else if to if
 			if (webThreads.size() > MAX_WEB_CLNT)
@@ -242,7 +260,6 @@ int main(int argc, char *argv[])
 
 			struct web_thread_struct args;
 			args.clntSock = clntSock;
-//			args.backendSock = backendSock;
 			args.webroot = webIP;
 			args.CR = &CR;
 			args.BR = &BR;
