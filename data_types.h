@@ -7,8 +7,6 @@
 #define MAX_LEN_EMAIL_BODY 256  // Will change this later
 #define CHUNK_SIZE 8192      // WIll change this later
 #define MAX_EMAILS 10           // WIll change this later
-#define FILE_TYPE 0
-#define DIRECTORY_TYPE 1 
 
 #pragma pack(1)
 typedef struct {

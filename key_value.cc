@@ -1,5 +1,6 @@
 #include "key_value.h"
 
+#include <algorithm>
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -43,15 +44,27 @@ typedef struct
 #endif
 }mail_content;
 
-typedef struct 
+typedef enum
 {
-    bool type;
+    FILE_TYPE,
+    DIRECTORY_TYPE
+}file_type;
+
+typedef struct fd_entry 
+{
+    file_type type;
     char name[1024];
+     
+    int res;
+    bool operator ==( const fd_entry& m ) const
+    {
+        return (m.type == type && ((strncmp(m.name, name, strlen(name))) == 0));
+    }
 }fd_entry;
 
 typedef struct
 {
-    bool type;  // 0 - Directory, 1 - File
+    file_type type;  // 0 - Directory, 1 - File
     
     /** If it is a file */
     uint64_t file_len;
@@ -176,6 +189,21 @@ extern bool verbose;
 /** Map to store key value pairs */
 map_tablet tablet; 
 
+void add_root_folder(map_tablet::iterator itr)
+{
+    tablet_column col;
+    col.type = DRIVE;
+
+    /** Add the new folder */
+    file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
+    // TODO: Check NULL
+
+    content->num_files = 0;
+
+    col.content = content; 
+    /** Add the entry to the map */
+    itr->second.columns.insert(std::make_pair(std::string("root"), col));
+}
 int add_user(char* username, char* password)
 {
     if (tablet.size() == MAX_TABLET_USERS)
@@ -201,6 +229,9 @@ int add_user(char* username, char* password)
     if (verbose)
         printf("Added user %s\n", username);
     tablet.insert(std::make_pair(username, row));
+
+    /** Add the root folder for this user */
+    add_root_folder(itr);
 
     return SUCCESS;
 }
@@ -658,6 +689,21 @@ int delete_file(delete_file_request* request)
     if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
     {
         itr->second.columns.erase(row_itr);
+        
+        /** Delete this file to its parent's list */
+        map_tablet_row:: iterator parent_itr; 
+        if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
+        {
+            file_content* content = (file_content*)(parent_itr->second.content);
+            content->num_files--;
+
+            fd_entry entry;
+            entry.type = FILE_TYPE;
+            strncpy(entry.name, request->filename, strlen(request->filename));
+            std::vector<fd_entry>::iterator a = std::find(content->entry.begin(), content->entry.end(), entry);
+            content->entry.erase(a);
+        }
+
     }
     else /** column doesn't exist */
     {
@@ -819,15 +865,12 @@ bool store_file(put_file_request* request, int fd)
         snprintf(new_data, content->file_len + request->chunk_len, "%s%s", content->file_data, request->data);
         content->file_data = new_data;
         content->file_len += request->chunk_len;
-        
-        if (verbose)
-            printf("Added column %s to row %s\n", column, row);
     }
     else /** Create a column with the given email ID */
     {
         /** Add the new column to this row */
         tablet_column col;
-        col.type = MAIL;
+        col.type = DRIVE;
 
         /** Add the new file */
         file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
@@ -845,6 +888,19 @@ bool store_file(put_file_request* request, int fd)
         col.content = content; 
         /** Add the entry to the map */
         itr->second.columns.insert(std::make_pair(std::string(column), col));
+
+        /** Add this file to its parent's list */
+        map_tablet_row:: iterator parent_itr; 
+        if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
+        {
+            file_content* content = (file_content*)(parent_itr->second.content);
+            content->num_files++;
+            fd_entry entry;
+            entry.type = FILE_TYPE;
+            strncpy(entry.name, request->filename, strlen(request->filename));
+            content->entry.push_back(entry);
+        }
+
 
         if (verbose)
             printf("Added column %s to row %s\n", column, row);
@@ -920,18 +976,173 @@ bool change_password(char* username, char* old_password, char* new_password)
 
 int create_folder(create_folder_request* request)
 {
+    char* row = request->username;
 
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    sprintf(full_path, "%s/%s", request->directory_path, request->folder_name);
+
+    char* column = full_path;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** Check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
+    {
+        return ERR_FILE_ALREADY_EXISTS;
+    }
+    else /** Create a column with the given folder name */
+    {
+        /** Add the new column to this row */
+        tablet_column col;
+        col.type = DRIVE;
+
+        /** Add the new folder */
+        file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
+        // TODO: Check NULL
+
+        content->num_files = 0;
+
+        col.content = content; 
+        /** Add the entry to the map */
+        itr->second.columns.insert(std::make_pair(std::string(column), col));
+
+        /** Add this folder to its parent's list */
+        map_tablet_row:: iterator parent_itr; 
+        if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
+        {
+            file_content* content = (file_content*)(parent_itr->second.content);
+            content->num_files++;
+            fd_entry entry;
+            entry.type = DIRECTORY_TYPE;
+            strncpy(entry.name, request->folder_name, strlen(request->folder_name));
+            content->entry.push_back(entry);
+        }
+
+        if (verbose)
+            printf("Added column %s to row %s\n", column, row);
+    }
+    return SUCCESS;
 }
 
 int get_folder_content(get_folder_content_request* request, int fd)
 {
+    char* row = request->username;
 
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    sprintf(full_path, "%s/%s", request->directory_path, request->folder_name);
+
+    char* column = full_path;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** Check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
+    {
+        if (verbose)
+            printf("folder %s doesn't exist\n", column);
+        return ERR_FILE_DOESNT_EXIST;
+    }
+    else 
+    {
+        file_content* content = (file_content*)(row_itr->second.content);
+
+        std::string content_list;
+        for(auto it = content->entry.begin(); it != content->entry.end(); it++)
+        {
+            content_list += (((*it).type == FILE_TYPE) ? 'F' : 'D') + std::string((*it).name) + '~';
+        }
+
+        if (verbose)
+            printf("Deleted folder %s recursively\n", column);
+    }
+    return SUCCESS;
 }
 
 int delete_folder(delete_folder_content_request* request)
 {
+    char* row = request->username;
 
+    /** Concatenate the path and name */
+    char full_path[1024 + 256];
+    sprintf(full_path, "%s/%s", request->directory_path, request->folder_name);
+
+    char* column = full_path;
+
+    map_tablet::iterator itr;
+    
+    /** Check if the row exists */
+    if ((itr = tablet.find(std::string(row))) == tablet.end())
+    {
+        if (verbose)
+            printf("no row with username %s exists\n", row);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** Check if this column exists */
+    map_tablet_row:: iterator row_itr; 
+    if ((row_itr = itr->second.columns.find(std::string(column))) == itr->second.columns.end())
+    {
+        if (verbose)
+            printf("folder %s doesn't exist\n", column);
+        return ERR_FILE_DOESNT_EXIST;
+    }
+    else /** Delete the folder */
+    {
+        /** Iterate through all the columns of the map and delete the ones which are DRIVE type and
+            their name contains the folder's name */
+        map_tablet_row:: iterator row_col;
+        int res;
+        for(row_col = itr->second.columns.begin(); row_col != itr->second.columns.end(); row_col++)
+        {
+            if ((res = strncmp(row_col->first.c_str(), column, strlen(column))) == 0)
+            {
+                /** Delete this column */
+                itr->second.columns.erase(row_col);
+            }
+        }
+
+        /** Delete this folder to its parent's list */
+        map_tablet_row:: iterator parent_itr; 
+        if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
+        {
+            file_content* content = (file_content*)(parent_itr->second.content);
+            content->num_files--;
+
+            fd_entry entry;
+            entry.type = DIRECTORY_TYPE;
+            strncpy(entry.name, request->folder_name, strlen(request->folder_name));
+            std::vector<fd_entry>::iterator a = std::find(content->entry.begin(), content->entry.end(), entry);
+            content->entry.erase(a);
+        }
+        if (verbose)
+            printf("Deleted folder %s recursively\n", column);
+    }
+    return SUCCESS;
 }
+
 
 bool process_command(char* command, int len, int fd)
 {
