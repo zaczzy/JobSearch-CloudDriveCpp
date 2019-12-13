@@ -84,7 +84,7 @@ typedef struct
        SerializeCStringHelper helper(file_data);
        ar & helper; 
        ar & num_files;
-       // TODO: Serialize vector
+       ar & entry;
    }
 #endif
 }file_content;
@@ -971,7 +971,29 @@ bool store_file(put_file_request* request, int fd)
 
 bool change_password(char* username, char* old_password, char* new_password)
 {
-    // TODO:    
+    map_tablet::iterator itr;
+    
+    /** Check if this username exists */
+    if ((itr = tablet.find(std::string(username))) == tablet.end())
+    {
+        if (verbose)
+            printf("user %s doesn't exist\n", username);
+
+        return ERR_USER_DOESNT_EXIST;
+    }
+
+    /** verify old password */
+    if (strncmp(itr->second.password.c_str(), old_password, strlen(itr->second.password.c_str())) == 0)
+    {
+        /** Change password */
+        itr->second.password = std::string(new_password); 
+        if (verbose)
+            printf("password successfully changed\n");
+
+        return SUCCESS;
+    }
+
+    return ERR_WRONG_PASSWORD;
 }
 
 int create_folder(create_folder_request* request)
