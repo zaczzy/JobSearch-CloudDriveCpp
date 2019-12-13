@@ -2,7 +2,7 @@
 
 #include "servercommon.h"
 #include "singleconnserverhtml.h"
-#include "mailservice.h"
+
 
 using namespace std;
 
@@ -145,6 +145,26 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
 	return HTML;
 }
 
+string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
+	string HTML = "";
+	for (email_header head: resp->email_headers) {
+		string from = head.from;
+		string subject = head.subject;
+		string date = head.date;
+		string email_id = to_string(head.email_id);
+		string viewMailButton = "<form action='/mail/m" + email_id + "' method='get' style='display:inline;'>"
+				"<button type='submit'>View</button></form>";
+		string deleteButton = "<form action='/delete_mail' method='post' style='display:inline;'>"
+				"<button type='submit' name='emailid' value='" + email_id + "'>Delete</button></form>";
+		HTML += "<html><body>"
+				"<div> From: <" + from + ">" +
+				"Subject: " + subject + " at " + date +
+				viewMailButton + deleteButton + "</div>" +
+				"</body></html>";
+	}
+	return HTML;
+}
+
 /*
  * Handle GET request
  */
@@ -172,19 +192,23 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 			requestURI.compare("/") == 0 ||
 			requestURI.compare("/login.html") == 0)
 		HTML = readHTMLFromFile("templates/index.html");
-	else if (requestURI.compare("/mail/inbox.html") == 0) {
+	else if (requestURI.compare("/mail/inbox") == 0) {
 		//SHOW_MAIL
-		char c_HTML[BUFF_SIZE];
-//		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
-		HTML = c_HTML;
-		HTML = readHTMLFromFile("templates/mail.html");
+		char c_HTML[BUFF_SIZE]; //unused
+		get_mail_response resp;
+		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, backendSock, &resp);
+		HTML = generateInbox(&resp);
+//		HTML = readHTMLFromFile("templates/mail.html");
+	}
+	else if (requestURI.find("/mail/compose") == 0) {
+		HTML = readHTMLFromFile("templates/compose.html");
 	}
 	else if (requestURI.find("/mail/m") == 0) {
 		//READ_MAIL
 		//URL format: /mail/m[email_id]
 		string email_id = requestURI.substr(strlen("/mail/m"));
 		char c_HTML[BUFF_SIZE];
-//		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, backendSock);
+		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, backendSock, NULL);
 		HTML = c_HTML;
 	}
 	else if (requestURI.compare("/storage.html") == 0) {
@@ -274,7 +298,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 
 		//throwaway buffer
 		char b[BUFF_SIZE];
-//		webserver_core(2, (char*)username.c_str(), -1, (char *)msg.c_str(), (char *)rcpt.c_str(), b, backendSock);
+//		webserver_core(2, (char*)username.c_str(), -1, (char *)msg.c_str(), (char *)rcpt.c_str(), b, backendSock, NULL);
 		//handle differently on failure?
 	}
 	if (requestURI.compare("/delete_mail") == 0) {
@@ -282,7 +306,9 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		//parse data e.g. emailid=777
 		string email_id = body + strlen("emailid=");
 		char b[BUFF_SIZE];
-//		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, backendSock);
+		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, backendSock, NULL);
+		requestURI = "/mail/inbox";
+		handleGET();
 		//handle differently on failure?
 	}
 }
@@ -300,15 +326,12 @@ void SingleConnServerHTML::splitHeaderBody(string input, vector<string> *header_
 	unsigned int i_endline;
 	string remainingHeaders = headers;
 	while((i_endline = remainingHeaders.find("\r\n")) != std::string::npos) {
-		cerr << i_endline;
 		string line = remainingHeaders.substr(0,i_endline);
 		remainingHeaders = remainingHeaders.substr(i_endline+strlen("\r\n"));
 		if (remainingHeaders.length() == 0)
 			break;
-		cout << "{" << remainingHeaders << "}" << endl;
 		header_list->push_back(line);
 	}
-	cout << "phuk";
 }
 
 /*

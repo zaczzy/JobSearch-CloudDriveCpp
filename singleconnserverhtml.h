@@ -11,6 +11,7 @@
 
 #include "cookierelay.h"
 #include "backendrelay.h"
+#include "mailservice.h"
 
 using namespace std;
 
@@ -30,6 +31,7 @@ private:
 	void handleGET(bool HEAD);
 	void handlePOST(char *body);
 	void splitHeaderBody(string input, vector<string> *header_list, string *body);
+	string generateInbox(get_mail_response *resp);
 
 	int sock;
 	int backendSock;

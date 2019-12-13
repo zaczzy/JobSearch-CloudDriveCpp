@@ -45,7 +45,8 @@ struct tm * timeinfo;
 *  @resp: Contains inbox values that is parsed by frontend
 */  
 
-int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user, char *html_response, int server_fd, get_mail_response *resp) {
+int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user,
+		char *html_response, int server_fd, get_mail_response *resp) {
   int valid = FAILURE;    //Defensive programming
   char send_msg[1000];
   char recv_msg[1000];
@@ -85,7 +86,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
 #endif
        char email_body[MAX_LEN_EMAIL_BODY];
        downloadEmail(user, email_id, mail_msg, server_fd, email_body);
-       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tEMAIL\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<h1>\n\t\t\tInbox:\n\t\t\t</h1>\n\t\t\t\t<p>%s</p>\n\t\n\n</body>\n\n</html>\r\n", email_body);
+       sprintf(send_msg, "<!doctype html>\n<html>\n\n<head>\n\n\t<title>\n\t\tEMAIL\n\t\t\t</title>\n\n</head>\n\n<body>\n\n\t<h1>\n\t\t\tMail:\n\t\t\t</h1>\n\t\t\t\t<p>%s</p>\n\t\n\n</body>\n\n</html>\r\n", email_body);
        strcpy((char *)html_response, send_msg);
        return 0;
       
@@ -264,7 +265,7 @@ int retrieveMailHeader(char *user, int server_fd, get_mail_response *resp) {
   send(server_fd, &request, sizeof(get_mail_request), 0);
   
   recv(server_fd, (get_mail_response *)resp, sizeof(get_mail_response), 0);
-  printf("\t\t\t\t\tINBOX\n\n\n");
+//  printf("\t\t\t\t\tINBOX\n\n\n");
 #ifdef DEBUG
   printf("username: %s\n", (char *)resp->username);
   printf("num_emails: %d\n", (int)resp->num_emails);
