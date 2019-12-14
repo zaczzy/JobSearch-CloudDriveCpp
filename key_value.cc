@@ -376,6 +376,7 @@ int store_email(put_mail_request* request)
     // TODO: Check NULL
     strncpy(content->email_body, request->email_body, request->email_len);
     *(content->header) = request->header;
+    content->header->email_id = email_id;
     content->email_id = email_id;
 
     col.content = content; 
@@ -561,6 +562,8 @@ int delete_mail(delete_mail_request* request)
 {
     char* row = request->username;
     unsigned long email_id = request->email_id;
+    // TODO: Remove
+    printf("delete email id %lu\n", email_id);
 
     map_tablet::iterator itr;
 

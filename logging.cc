@@ -16,19 +16,16 @@ typedef struct
     char* password;
 }user_login;
 
-//std::vector<log_entry> log_entry_table;
 extern bool verbose;
 std::ofstream ofs(LOG_FILE,std::fstream::app);
-boost::archive::text_oarchive oa(ofs);
 
 int add_log_entry(op_type type, void* data)
 {
 #ifdef SERIALIZE
-    //std::ofstream ofs(LOG_FILE,std::fstream::app);
-    //boost::archive::text_oarchive oa(ofs);
 
-    // TODO: remove
-    printf("log type: %d\n", type);
+    if (verbose)
+        printf("log type: %d\n", type);
+    boost::archive::text_oarchive oa(ofs);
     oa << type;
 
     switch(type)
@@ -36,36 +33,26 @@ int add_log_entry(op_type type, void* data)
         case ADD_FILE:
             {
                 put_file_request* req = (put_file_request*)data;
-                oa << req;
+                oa << *req;
             }
             break;
         case ADD_FOLDER:
             {
                 create_folder_request* req = (create_folder_request*)data;
-                oa << req;
+                oa << *req;
             }
             break;
         case ADD_EMAIL:
             {
                 put_mail_request* req = (put_mail_request*)data;
-
-                // TODO: rmeove
-                printf("tets req->username: %s\n", req->username);
                 oa << *req;
             }
             break;
         case ADD_USER:
             {
-                printf("initial data: %s\n", (char*)data);
                 char* str = (char*)data;
-
-                // TODO: Remove
-                printf("str: %s\n", str);
                 SerializeCStringHelper helper(str);
                 oa << helper;
-
-                // TODO: remove
-                printf("str from helper: %s\n", helper.getstr());
 
             }
             break;
@@ -79,19 +66,19 @@ int add_log_entry(op_type type, void* data)
         case DELETE_FILE:
             {
                 delete_file_request* req = (delete_file_request*)data;
-                oa << req;
+                oa << *req;
             }
             break;
         case DELETE_FOLDER:
             {
                 delete_folder_content_request* req = (delete_folder_content_request*)data;
-                oa << req;
+                oa << *req;
             }
             break;
         case DELETE_EMAIL:
             {
                 delete_mail_request* req = (delete_mail_request*)data;
-                oa << req;
+                oa << *req;
             }
             break;
         case DELETE_USER:
@@ -153,7 +140,6 @@ int replay_log()
     /** Deserialize data from file */
     int type;
     std::ifstream ifs(LOG_FILE);
-    boost::archive::text_iarchive ia(ifs);
     
     if (verbose)
         printf("Replaying log\n");
@@ -184,6 +170,7 @@ int replay_log()
     unsigned long long ctr = 0;
     while (ctr++ < sequence_no)
     {
+        boost::archive::text_iarchive ia(ifs);
         ia >> type;
         printf("type: %d\n", type);
         
@@ -191,31 +178,27 @@ int replay_log()
         {
             case ADD_FILE:
                 {
-                    put_file_request* req;
+                    put_file_request req;
                     ia >> req;
 
                     /** Add the file */
-                    store_file(req);
+                    store_file(&req);
                 }
                 break;
             case ADD_FOLDER:
                 {
-                    create_folder_request* req;
+                    create_folder_request req;
                     ia >> req;
 
                     /** Add the file */
-                    create_folder(req);
+                    create_folder(&req);
                 }
                 break;
             case ADD_EMAIL:
                 {
-                    // TODO remove
-                    printf("put email log\n");
-
                    put_mail_request req;
                    ia >> req;
 
-                   printf("testing req->username: %s\n", req.username);
                     /** Add the email */
                     store_email(&req);
                 }
@@ -226,15 +209,9 @@ int replay_log()
                     SerializeCStringHelper helper(command);
                     ia >> helper;
 
-                    // TODO: Remove
-                    printf("str read from helper: %s\n", helper.getstr());
-                    printf("command: %s\n", command);
-
                     char* username = strtok(command + strlen("add"), " ");
                     char* password = strtok(NULL, " ");
                     
-                    // TODO: Remove
-                    printf("username : %s passwod: %s\n", username, password);
                     add_user(username, password);
                 }
                 break;
@@ -262,20 +239,20 @@ int replay_log()
                 break;
             case DELETE_FOLDER:
                 {
-                    delete_folder_content_request* req;
+                    delete_folder_content_request req;
                     ia >> req;
 
                     /** Add the file */
-                    delete_folder(req);
+                    delete_folder(&req);
                 }
                 break;
             case DELETE_EMAIL:
                 {
-                    delete_mail_request* req;
+                    delete_mail_request req;
                     ia >> req;
 
-                    /** Add the file */
-                    delete_mail(req);
+                    /** Delete the file */
+                    delete_mail(&req);
                 }
                 break;
             case DELETE_USER:
