@@ -33,6 +33,10 @@ public:
   SerializeCStringHelper(char*& s) : s_(s) {}
   SerializeCStringHelper(const char*& s) : s_(const_cast<char*&>(s)) {}
 
+  char* getstr()
+  {
+      return s_;
+  }
 private:
 
   friend class boost::serialization::access;

@@ -11,6 +11,7 @@
 #include "socket.h"
 
 #include "error.h"
+#include "logging.h"
 
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
 
@@ -254,6 +255,9 @@ void add_root_folder(map_tablet::iterator itr)
     col.content = content; 
     /** Add the entry to the map */
     itr->second.columns.insert(std::make_pair(std::string("root"), col));
+
+    if (verbose)
+        printf("added root folder for the user\n");
 }
 
 int add_user(char* username, char* password)
@@ -278,10 +282,13 @@ int add_user(char* username, char* password)
     row.num_emails = 0;
     row.num_files = 0;
 
-    if (verbose)
-        printf("Added user %s\n", username);
     tablet.insert(std::make_pair(username, row));
 
+    if (verbose)
+        printf("Added user %s\n", username);
+    
+    itr = tablet.find(std::string(username));
+        
     /** Add the root folder for this user */
     add_root_folder(itr);
 
@@ -303,6 +310,9 @@ int delete_user(char* username, char* password)
 
     /** Delete the user with this username */
     tablet.erase(itr);
+
+    if (verbose)
+        printf("Deleted user %s\n", username);
 
     return SUCCESS;
 }
@@ -571,6 +581,9 @@ int delete_mail(delete_mail_request* request)
     {
         itr->second.num_emails--;
         itr->second.columns.erase(row_itr);
+
+        if (verbose)
+            printf("email %lu deleted\n", request->email_id);
     }
     else /** email id doesn't exist */
     {
@@ -754,8 +767,10 @@ int delete_file(delete_file_request* request)
             strncpy(entry.name, request->filename, strlen(request->filename));
             std::vector<fd_entry>::iterator a = std::find(content->entry.begin(), content->entry.end(), entry);
             content->entry.erase(a);
-        }
 
+            if (verbose)
+                printf("file %s deleted\n", request->filename);
+        }
     }
     else /** column doesn't exist */
     {
@@ -940,6 +955,9 @@ bool store_file(put_file_request* request)
         col.content = content; 
         /** Add the entry to the map */
         itr->second.columns.insert(std::make_pair(std::string(column), col));
+
+        if (verbose)
+            printf("added file %s\n", column);
 
         /** Add this file to its parent's list */
         map_tablet_row:: iterator parent_itr; 
@@ -1195,6 +1213,9 @@ int delete_folder(delete_folder_content_request* request)
             {
                 /** Delete this column */
                 itr->second.columns.erase(row_col);
+
+                if (verbose)
+                    printf("Deleted folder %s\n", column);
             }
         }
 
@@ -1236,6 +1257,11 @@ bool process_command(char* command, int len, int fd)
     /** add user command */
     if (strncmp(command, "add", strlen("add")) == 0 || strncmp(command, "ADD", strlen("ADD")) == 0)
     {
+        /** Remove the newline character */
+        command[strlen(command) - 1] = '\0';
+        /** LOg this entry into the log file */
+        add_log_entry(ADD_USER, command);
+
         char* username = strtok(command + strlen("add"), " ");
         char* password = strtok(NULL, " ");
 
@@ -1258,6 +1284,9 @@ bool process_command(char* command, int len, int fd)
     /** delete user command */
     else if (strncmp(command, "delete", strlen("delete")) == 0 || strncmp(command, "DELETE", strlen("DELETE")) == 0)
     {
+        /** LOg this entry into the log file */
+        add_log_entry(DELETE_USER, command);
+
         char* username = strtok(command + strlen("delete"), " ");
         char* password = strtok(NULL, " ");
 
@@ -1278,6 +1307,9 @@ bool process_command(char* command, int len, int fd)
     /** change pw command */
     else if (strncmp(command, "changepw", strlen("changepw")) == 0 || strncmp(command, "CHANGEPW", strlen("CHANGEPW")) == 0)
     {
+        /** LOg this entry into the log file */
+        add_log_entry(CHNG_PW, command);
+
         char* username = strtok(command + strlen("changepw"), " ");
         char* old_password = strtok(NULL, " ");
         char* new_password = strtok(NULL, " ");
@@ -1326,6 +1358,9 @@ bool process_command(char* command, int len, int fd)
         if (verbose)
             printf("putmail request\n");
         put_mail_request* mail_request = (put_mail_request*)command;
+
+        /** LOg this entry into the log file */
+        add_log_entry(ADD_EMAIL, mail_request);
 
         /** Store the new mail */
         int res = store_email(mail_request);
@@ -1404,6 +1439,9 @@ bool process_command(char* command, int len, int fd)
             printf("delete email request\n");
         delete_mail_request* req = (delete_mail_request*)command;
 
+        /** LOg this entry into the log file */
+        add_log_entry(DELETE_EMAIL, req);
+
         /** Delete mail */
         int res = delete_mail(req);
         
@@ -1424,6 +1462,9 @@ bool process_command(char* command, int len, int fd)
     else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
     {
         put_file_request* file_request = (put_file_request*)command;
+
+        /** LOg this entry into the log file */
+        add_log_entry(ADD_FILE, file_request);
 
         /** Store the new file */
         int res = store_file(file_request);
@@ -1461,6 +1502,9 @@ bool process_command(char* command, int len, int fd)
     else if (strncmp(command, "delfile", 7) == 0 || strncmp(command, "DELFILE", 7) == 0)
     {
         delete_file_request* file_request = (delete_file_request*)command;
+
+        /** LOg this entry into the log file */
+        add_log_entry(DELETE_FILE, file_request);
 
         /** Store the new file */
         int res = delete_file(file_request);
@@ -1501,6 +1545,9 @@ bool process_command(char* command, int len, int fd)
     {
         create_folder_request* folder_request = (create_folder_request*)command;
 
+        /** LOg this entry into the log file */
+        add_log_entry(ADD_FOLDER, folder_request);
+
         /** Get file data */
         int res = create_folder(folder_request);
 
@@ -1518,6 +1565,9 @@ bool process_command(char* command, int len, int fd)
     else if (strncmp(command, "delfolder", 9) == 0 || strncmp(command, "DELFOLDER", 9) == 0)
     {
         delete_folder_content_request* del_request = (delete_folder_content_request*)command;
+
+        /** LOg this entry into the log file */
+        add_log_entry(DELETE_FOLDER, del_request);
 
         /** Get file data */
         int res = delete_folder(del_request);

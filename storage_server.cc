@@ -14,10 +14,12 @@
 #include <unordered_map>
 
 #include "data_types.h"
+#include "logging.h"
 #include "socket.h"
 #include "thread.h"
 
 #define IP_ADDRESS_LEN  16
+#define ADMIN_PORT      2333
 
 bool verbose = false;
 volatile bool terminate = false;
@@ -30,11 +32,62 @@ std::unordered_map<int, char*> server_group;
 uint8_t total_servers = 0;
 uint8_t server_id;
 
+
+//void* admin_thread(void* args)
+//{
+//    int sockfd; 
+//    struct sockaddr_in servaddr; 
+//  
+//    // socket create and varification 
+//    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
+//    if (sockfd == -1) { 
+//        printf("socket creation failed...\n"); 
+//        exit(0); 
+//    } 
+//    else
+//        printf("Socket successfully created..\n"); 
+//    bzero(&servaddr, sizeof(servaddr)); 
+//  
+//    // assign IP, PORT 
+//    servaddr.sin_family = AF_INET; 
+//    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
+//    servaddr.sin_port = htons(ADMIN_PORT); 
+//  
+//    // connect the client socket to server socket 
+//    if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) { 
+//    
+//        if (verrbose)
+//            printf("connection with the admin server failed...\n"); 
+//        exit(EXIT_FAILURE); 
+//    } 
+//    else
+//    {
+//       if (verbose) 
+//            printf("connected to the admin server..\n"); 
+//    }
+//}
+//
+//void create_thread_for_admin()
+//{
+//    pthread_t thread;
+//    int iret1 = pthread_create(&thread, NULL, admin_thread, NULL);
+//
+//    if (iret1 != 0)
+//    {
+//        if  (verbose)
+//            fprintf(stderr, "Error creating thread for admin\n");
+//        exit(EXIT_FAILURE);
+//    }
+//}
+
 void run_storage_server(char* ip_address, int port_no)
 {
     printf("running storage server\n");
     char success_msg[] = "+OK Server ready (Author: Team 24)\r\n";
     int msg_len = strlen(success_msg);
+
+    /** Open a socket and create a thread to comminicate with the admin */
+    //create_thread_for_admin();
 
     /** Prepare the socket - create, bind, and listen to port */
     server_fd = prepare_socket(port_no);
@@ -314,6 +367,10 @@ int main(int argc, char *argv[])
 
     /** Read ip address and port no from config file */
     bool res = read_server_config_master(config_file, group_no, server_no, ip_address, &server_port_no);
+
+    // TODO: Remove 
+   replay_log();
+
 
     if (res == FAILURE)
         exit(EXIT_FAILURE);
