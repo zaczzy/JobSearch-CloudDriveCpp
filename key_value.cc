@@ -10,10 +10,8 @@
 #include <unordered_map>
 #include "socket.h"
 
-#include "data_types.h"
 #include "error.h"
 
-#define MAX_CHUNK_SIZE      10240   // 10 KB TODO: Check with Zach
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
 
 typedef enum 
@@ -257,6 +255,7 @@ void add_root_folder(map_tablet::iterator itr)
     /** Add the entry to the map */
     itr->second.columns.insert(std::make_pair(std::string("root"), col));
 }
+
 int add_user(char* username, char* password)
 {
     if (tablet.size() == MAX_TABLET_USERS)
@@ -878,7 +877,7 @@ int get_file_data(get_file_metadata* request, int fd)
 #endif
 
 #if 1
-bool store_file(put_file_request* request, int fd)
+bool store_file(put_file_request* request)
 {
     char* row = request->username;
 
@@ -1427,7 +1426,7 @@ bool process_command(char* command, int len, int fd)
         put_file_request* file_request = (put_file_request*)command;
 
         /** Store the new file */
-        int res = store_file(file_request, fd);
+        int res = store_file(file_request);
         
         if (res == SUCCESS)
             strncpy(message, "+OK file stored", strlen("+OK file stored"));

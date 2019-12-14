@@ -8,15 +8,17 @@ class LogVoidPtrHelper;
 typedef enum
 {
     ADD_FILE,
+    ADD_FOLDER,
     ADD_EMAIL,
     ADD_USER,
     CHNG_PW,
     DELETE_FILE,
     DELETE_EMAIL,
-    DELETE_USER 
+    DELETE_USER,
+    DELETE_FOLDER
 }op_type;
 
-#if 1
+#if 0
 typedef struct
 {
     op_type type;
@@ -62,7 +64,6 @@ typedef struct
    }
 #endif
 }log_addfile_mdata;
-
 
 typedef struct
 {

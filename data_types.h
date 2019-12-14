@@ -1,3 +1,5 @@
+#ifndef DATA_TYPES_H
+#define DATA_TYPES_H
 
 #include <cstdint>
 #include <cstring>
@@ -117,6 +119,20 @@ typedef struct
     email_header header;
     uint64_t email_len;
     char email_body[MAX_LEN_EMAIL_BODY];
+
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & prefix;
+       ar & username;
+       ar & header;
+       ar & email_len;
+       ar & email_body;
+   }
+#endif
 }put_mail_request;
 
 #pragma pack(1)
@@ -163,6 +179,17 @@ typedef struct
     char prefix[8];     // Should be "delmail"
     char username[32];
     unsigned long email_id;
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & prefix;
+       ar & username;
+       ar & email_id;
+   }
+#endif
 }delete_mail_request;
 
 // DELETE file from directory
@@ -172,6 +199,18 @@ typedef struct {
   char username[32];
   char directory_path[1024];
   char filename[256];
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & prefix;
+       ar & username;
+       ar & directory_path;
+       ar & filename;
+   }
+#endif
 } delete_file_request;
 
 // PUT file to directory
@@ -183,6 +222,20 @@ typedef struct {
   char filename[256];
   uint64_t chunk_len;
   char data[CHUNK_SIZE];
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & prefix;
+       ar & username;
+       ar & directory_path;
+       ar & filename;
+       ar & chunk_len;
+       ar & data;
+   }
+#endif
 } put_file_request;
 
 // GET file from directory
@@ -208,6 +261,18 @@ typedef struct {
   char username[32];
   char directory_path[1024]; // "r00t"
   char folder_name[256]; // "test"
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & prefix;
+       ar & username;
+       ar & directory_path;
+       ar & folder_name;
+   }
+#endif
 } create_folder_request;
 
 // GET folder contents
@@ -237,5 +302,18 @@ typedef struct {
   char username[32];
   char directory_path[1024]; // "r00t"
   char folder_name[256]; // "test"
+#ifdef SERIALIZE
+    friend class boost::serialization::access;
+   template<class Archive>
+   void serialize(Archive & ar, const unsigned int version)
+   {
+       // Simply list all the fields to be serialized/deserialized.
+       ar & prefix;
+       ar & username;
+       ar & directory_path;
+       ar & folder_name;
+   }
+#endif
 } delete_folder_content_request;
 
+#endif
