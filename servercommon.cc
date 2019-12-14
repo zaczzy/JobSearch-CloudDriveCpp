@@ -26,6 +26,15 @@ void die(string msg, bool isThread){
 }
 
 /*
+ * Used prior to a connect() to a server which hasn't been setup yet.
+ */
+void pause() {
+	string beans;
+	cout << "Pausing for setup of other servers..." << endl;
+	cin >> beans;
+}
+
+/*
  * Create a server socket. Make it reusable and nonblocking.
  * IP eventually needed?
  */
