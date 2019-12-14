@@ -27,8 +27,9 @@ private:
 	int sendMsg(string msg);
 	void sendStatus(int statusCode);
 	void sendHeaders(int length);
+	void sendFileHeaders(const string& fname, int length);
 	void handleGET(bool HEAD);
-	void handlePOST(char *body);
+	void handlePOST(char *body, bool is_multipart_form, string& boundary, int content_length, int sock);
 	void splitHeaderBody(string input, vector<string> *header_list, string *body);
 
 	int sock;

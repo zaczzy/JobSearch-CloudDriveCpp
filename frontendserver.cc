@@ -75,7 +75,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 	ifstream infile(configFile);
 	if (!infile)
 		die("Can't open config file");
-	int lineno = 0;
+	int lineno = 1;
 	string line;
 	while (getline(infile, line)) {
 		if (lineno++ != configID)
