@@ -241,6 +241,11 @@ extern bool verbose;
 /** Map to store key value pairs */
 map_tablet tablet; 
 
+void clear_tablet()
+{
+    tablet.clear();
+}
+
 void add_root_folder(map_tablet::iterator itr)
 {
     tablet_column col;

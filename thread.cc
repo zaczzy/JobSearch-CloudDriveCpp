@@ -22,45 +22,34 @@ void* read_commands(void* args)
     std::vector<int64_t> my_nums;
     int* client_fd = (int*)(args);
 
-    /** Register the signal handler */
-    //signal(SIGINT, handle_sigint);
-
     char buffer[2048];
     while(!terminate)
     {
         memset(buffer, 0, sizeof(buffer));
 
-        //while (!command_completed)
+        /** Read the command from the client */
+        int ret;
+        ret = read(*client_fd, buffer, sizeof(buffer));
+
+        if (ret == -1)
         {
-            /** Read the command from the client */
-            int ret;
-            ret = read(*client_fd, buffer, sizeof(buffer));
-
-            if (ret == -1)
-            {
-                printf("error code : %s\n", strerror(errno));
-            }
-            if (ret == 0)
-            {
-                continue;
-            }
-            printf("read %d bytes\n", ret);
-            if (terminate)
-                goto term;
-
-            if (ret < 0)
-            {
-                // ERror
-                exit(EXIT_FAILURE);
-            }
-            
-            //printf("buffer: %s\n", buffer);
-            //bool close_connection = process_command(buffer, ret, *client_fd);
-            process_command(buffer, ret, *client_fd);
-            
-            //if (close_connection)
-            //    goto term;
+            printf("error code : %s\n", strerror(errno));
         }
+        if (ret == 0)
+        {
+            continue;
+        }
+        printf("read %d bytes\n", ret);
+        if (terminate)
+            goto term;
+
+        if (ret < 0)
+        {
+            // ERror
+            exit(EXIT_FAILURE);
+        }
+
+        process_command(buffer, ret, *client_fd);
     }
 
 term:
@@ -69,7 +58,6 @@ term:
     close(*client_fd);
 
     pthread_exit(NULL);
-
 }
 
 void create_thread(int* fd)

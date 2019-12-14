@@ -17,85 +17,40 @@
 #include "logging.h"
 #include "socket.h"
 #include "thread.h"
+#include "key_value.h"
 
 #define IP_ADDRESS_LEN  16
 #define ADMIN_PORT      2333
 
 bool verbose = false;
 volatile bool terminate = false;
+char ip_address[IP_ADDRESS_LEN];
+int server_port_no;
 
 volatile int fds[100];
-int client_count = 0;
-int server_fd;
 std::unordered_map<int, char*> server_addresses; 
 std::unordered_map<int, char*> server_group; 
 uint8_t total_servers = 0;
 uint8_t server_id;
 
-
-//void* admin_thread(void* args)
-//{
-//    int sockfd; 
-//    struct sockaddr_in servaddr; 
-//  
-//    // socket create and varification 
-//    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-//    if (sockfd == -1) { 
-//        printf("socket creation failed...\n"); 
-//        exit(0); 
-//    } 
-//    else
-//        printf("Socket successfully created..\n"); 
-//    bzero(&servaddr, sizeof(servaddr)); 
-//  
-//    // assign IP, PORT 
-//    servaddr.sin_family = AF_INET; 
-//    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
-//    servaddr.sin_port = htons(ADMIN_PORT); 
-//  
-//    // connect the client socket to server socket 
-//    if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) { 
-//    
-//        if (verrbose)
-//            printf("connection with the admin server failed...\n"); 
-//        exit(EXIT_FAILURE); 
-//    } 
-//    else
-//    {
-//       if (verbose) 
-//            printf("connected to the admin server..\n"); 
-//    }
-//}
-//
-//void create_thread_for_admin()
-//{
-//    pthread_t thread;
-//    int iret1 = pthread_create(&thread, NULL, admin_thread, NULL);
-//
-//    if (iret1 != 0)
-//    {
-//        if  (verbose)
-//            fprintf(stderr, "Error creating thread for admin\n");
-//        exit(EXIT_FAILURE);
-//    }
-//}
+void* run_server_for_admin(void* args);
 
 void run_storage_server(char* ip_address, int port_no)
 {
-    printf("running storage server\n");
+    int server_fd;
+    int client_count = 0;
     char success_msg[] = "+OK Server ready (Author: Team 24)\r\n";
     int msg_len = strlen(success_msg);
 
-    /** Open a socket and create a thread to comminicate with the admin */
-    //create_thread_for_admin();
-
+    
+    printf("running storage server\n");
     /** Prepare the socket - create, bind, and listen to port */
     server_fd = prepare_socket(port_no);
 
     if (server_fd == -1)
         exit(EXIT_FAILURE);
 
-    /** Run until terminated by a SIGINT signal */
+    /** Run until terminated by admin*/
     while(!terminate)
     {
         int *client_fd = new int;
@@ -133,6 +88,8 @@ void run_storage_server(char* ip_address, int port_no)
         /** Create a separate thread for communication */
         create_thread(client_fd);
     }
+
+    client_count = 0;
 }
 
 bool read_server_config_master(char* config_file, int group_no, int server_no, char* ip_address, int* port_no)
@@ -351,6 +308,93 @@ void parse_args(int argc, char *argv[], char* config_file, int* group_no, int* s
     *server_no = atoi(argv[optind]);
 }
 
+void* read_admin_commands(int client_fd)
+{
+    char buffer[2048];
+    while(true)
+    {
+        memset(buffer, 0, sizeof(buffer));
+
+        /** Read the command from the client */
+        int ret;
+        ret = read(client_fd, buffer, sizeof(buffer));
+
+        if (ret == -1)
+        {
+            printf("error code : %s\n", strerror(errno));
+        }
+        if (ret == 0)
+        {
+            continue;
+        }
+
+        if (ret < 0)
+        {
+            // ERror
+            exit(EXIT_FAILURE);
+        }
+
+        printf("command received from admin: %s\n", buffer);
+        
+        if (strncmp(buffer, "disable", strlen("disable")) == 0)
+        {
+            terminate = true;
+            
+            /** Clear the map */
+            clear_tablet();
+
+            /** TODO: Free locks if acquiree any */
+        }
+        else if (strncmp(buffer, "restart", strlen("restart")) == 0)
+        {
+            terminate = false;
+
+            /** Replay logs from log file */
+            replay_log();
+
+            /** Run the main storage server again */
+            //run_storage_server(ip_address, server_port_no);
+        }
+    }
+}
+
+void* run_server_for_admin(void* args)
+{
+    if (verbose)
+        printf("running server for admin\n");
+    int fd = prepare_socket(ADMIN_PORT);
+
+    if (fd == -1)
+    {
+        if (verbose)
+            printf("Couldn't create socket for communication with admin \n");
+        exit(EXIT_FAILURE);
+    }
+
+    /** Run until terminated by a SIGINT signal */
+    //while(true)
+    {
+        int client_fd;
+        client_fd = -1;
+        struct sockaddr_in client_addr;
+        socklen_t client_addrlen = sizeof(client_addr);
+
+        /** Accept the connection */
+        client_fd = accept(fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_addrlen);
+
+        if (client_fd < 0 && errno != EAGAIN && errno != EWOULDBLOCK) 
+        {
+            if (verbose)
+                fprintf(stderr, "admin client accept failed\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (verbose)
+            printf("accepted client connection\n");
+
+        read_admin_commands(client_fd); 
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -358,8 +402,6 @@ int main(int argc, char *argv[])
     //signal(SIGINT, handle_sigint);
 
     /** Process the command-line args */
-    char ip_address[IP_ADDRESS_LEN];
-    int server_port_no;
     char config_file[256];
     int server_no, group_no;
 
@@ -368,12 +410,18 @@ int main(int argc, char *argv[])
     /** Read ip address and port no from config file */
     bool res = read_server_config_master(config_file, group_no, server_no, ip_address, &server_port_no);
 
-    // TODO: Remove 
-   replay_log();
-
-
     if (res == FAILURE)
         exit(EXIT_FAILURE);
+
+    pthread_t thread;
+    int iret1 = pthread_create(&thread, NULL, run_server_for_admin, NULL);
+
+    if (iret1 != 0)
+    {
+        if  (verbose)
+            fprintf(stderr, "Error creating thread\n");
+        exit(EXIT_FAILURE);
+    }
 
     run_storage_server(ip_address, server_port_no);
 

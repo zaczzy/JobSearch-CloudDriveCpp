@@ -5,6 +5,7 @@
 
 #include <stdbool.h> 
 
+void clear_tablet();
 int add_user(char* username, char* password);
 int delete_user(char* username, char* password);
 int store_email(put_mail_request* request);
