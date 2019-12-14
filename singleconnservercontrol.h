@@ -3,6 +3,7 @@
 
 #include <string>
 #include <set>
+#include <pthread.h>
 
 using namespace std;
 
@@ -11,7 +12,7 @@ using namespace std;
  */
 class SingleConnServerControl {
 public:
-	SingleConnServerControl(int sock);
+	SingleConnServerControl(int sock, set<pthread_t> *webThreads);
 	~SingleConnServerControl();
 	void backbone();
 private:

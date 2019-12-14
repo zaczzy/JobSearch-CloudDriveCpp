@@ -5,7 +5,7 @@ TARGETS = fes
 all: $(TARGETS)
 
 %.o: %.cc %.h
-	$(CC) $(CFLAGS) -ggdb -o $@ -c $<
+	$(CC) $(CFLAGS) -o $@ -c $<
 
 fes: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o 
 	$(CC) $(CFLAGS) $^ -o $@

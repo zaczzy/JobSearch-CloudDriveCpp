@@ -12,8 +12,8 @@ using namespace std;
 /*
  * Constructor
  */
-SingleConnServerControl::SingleConnServerControl(int sock):
-	sock(sock){
+SingleConnServerControl::SingleConnServerControl(int sock, set<pthread_t> *webThreads):
+	sock(sock), webThreads(webThreads){
 
 }
 
@@ -33,7 +33,7 @@ int SingleConnServerControl::sendMsg(string msg) {
 	if (shutdownFlag || i < 0)
 		die("Shutdown flag or write fail", sock);
 	if (VERBOSE)
-		fprintf(stderr, "[%d][WEB] S: %s", sock, m);
+		fprintf(stderr, "[%d][CTRL] S: %s\n", sock, m);
 	return 1;
 }
 
@@ -81,7 +81,7 @@ void SingleConnServerControl::backbone() {
 		//deal with different commands
 		if (req.compare("GETLOAD") == 0) {
 			int load = webThreads->size();
-			string msg = to_string(load);
+			string msg = "threads=" + to_string(load);
 			sendMsg(msg);
 		}
 

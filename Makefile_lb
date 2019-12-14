@@ -7,7 +7,7 @@ all: $(TARGETS)
 %.o: %.cc %.h
 	$(CC) $(CFLAGS) -ggdb -o $@ -c $<
 
-lb: servercommon.o frontendserver.o loadbalancer.o 
+lb: servercommon.o loadbalancer.o 
 	$(CC) $(CFLAGS) $^ -o $@
 
 pack:

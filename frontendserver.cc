@@ -93,7 +93,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 	ifstream infile(configFile);
 	if (!infile)
 		die("Can't open config file");
-	int lineno = 0;
+	int lineno = 1;
 	string line;
 	while (getline(infile, line)) {
 		if (lineno++ != configID)
@@ -162,7 +162,7 @@ void *controlThreadFunc(void *args){
 	struct control_thread_struct *a = (struct control_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
 
-	SingleConnServerControl S(clntSock);
+	SingleConnServerControl S(clntSock, &webThreads);
 	S.backbone();
 	close(clntSock);
 }
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
 	readConfig_fes(configFile, configID, &webIP, &webPort, &controlIP, &controlPort);
 
 	if (VERBOSE)
-		fprintf(stderr, "Webroot: %s\nPort: %d\n\n", webIP.c_str(), webPort);
+		fprintf(stderr, "Webroot: %s\nWebport: %d\nCtrlport: %d\n\n", webIP.c_str(), webPort, controlPort);
 
 	//Server socket for webclients
 	int webSock = createServerSocket(webPort);
@@ -224,12 +224,19 @@ int main(int argc, char *argv[])
 	//Client socket for backend
 	backendSock = createClientSocket(BACKEND_PORT);
 	//Client socket for load balancer (for cookies??)
-	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
+//	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
+
+	//Clear welcome message from backend socket
+	char buff[BUFF_SIZE];
+	memset(buff, 0, sizeof(buff));
+	read(backendSock, buff, sizeof(buff));
+	if (VERBOSE)
+		fprintf(stderr, "%s\n", buff);
 
 	socks.insert(webSock);
 	socks.insert(controlSock);
 	socks.insert(backendSock);
-	socks.insert(loadbalancerSock);
+//	socks.insert(loadbalancerSock);
 
 	//Relay messages through backend
 	BackendRelay BR(backendSock);
@@ -241,7 +248,7 @@ int main(int argc, char *argv[])
 		fds[0].events = POLLIN;
 		fds[1].fd = controlSock;
 		fds[1].events = POLLIN;
-		int ret = poll(fds, 1, 500);
+		int ret = poll(fds, 2, 500);
 		//poll error
 		if (ret == -1)
 			die("Poll error", false);

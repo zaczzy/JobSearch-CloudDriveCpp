@@ -40,8 +40,8 @@ void readConfig_lb(char *configFile) {
 	ifstream infile(configFile);
 	if (!infile)
 		die("Can't open config file");
-	int lineno = 0;
 	string line;
+
 	while (getline(infile, line)) {
 		string webAddr;
 		string controlAddr;
@@ -68,27 +68,34 @@ void readConfig_lb(char *configFile) {
 /*
  * Send a message to the client over provided socket.
  */
-string sendCommand(int sock, string command) {
+string sendCommand(int sock, char *command) {
 	char buff[BUFF_SIZE];
-	write(sock, (char *)command.c_str(), command.length());
+	memset(buff, 0, sizeof(buff));
+	if (VERBOSE)
+		fprintf(stderr, "[%d][WEB] LB: %s\n", sock, command);
+	int i = write(sock, command, strlen(command));
+	//Error (closed sock)
+	if (i == 0)
+		return "";
 	read(sock, buff, sizeof(buff));
-//	if (VERBOSE)
-//		fprintf(stderr, "%s\n", buff);
 	string result = buff;
 	return result;
 }
 
-string getFirstFreeServer(vector<int> *loads) {
-	for (int i=0; i<loads->size(); i++)
-		if ((*loads)[i] != MAX_WEB_CLNT)
+string getFirstFreeServer(vector<int> loads) {
+	for (int i=0; i<loads.size(); i++)
+		if (loads[i] < MAX_WEB_CLNT)
 			return fe_fwdAddrs[i];
 	//if here, this is bad (all servers full)
 }
 
 void redirect(int clntSock, string fwdAddr){
-	string msg = "HTTP/1.1 303 See Other\r\nLocation: " + fwdAddr;
+	//http: required (absolute URI)
+	string msg = "HTTP/1.1 303 See Other\r\nLocation: http://" + fwdAddr + "/\r\n\r\n";
 	char *m = (char *)msg.c_str();
 	int i = write(clntSock, m, strlen(m));
+	//important to close! so browser can move on
+	close(clntSock);
 	if (shutdownFlag || i < 0)
 		die("Shutdown flag or write fail");
 	if (VERBOSE)
@@ -97,9 +104,6 @@ void redirect(int clntSock, string fwdAddr){
 
 int main(int argc, char *argv[])
 {
-	char *configFile;
-	int configID;
-
 	//Handle options
 	int c;
 	while ((c = getopt (argc, argv, "avp:")) != -1) {
@@ -116,18 +120,19 @@ int main(int argc, char *argv[])
 	}
 
 	//non option arguments
-	if (optind >= argc)
-		die("*** Author: Michal Porubcin (michal19)\n", -1);
-	configID = atoi(argv[optind]);
-
-	//need to connect to each config server
-	configFile = (char*)"config_fes.txt";
+//	if (optind >= argc)
+//		die("*** Author: Michal Porubcin (michal19)\n", -1);
+//	configID = atoi(argv[optind]);
+	char *configFile = (char*)"config_fes.txt";
 
 	//Create socket for fes control
 	readConfig_lb(configFile);
 
 	//Server socket for webclients (to redirect)
-	int webSock = createServerSocket(LOADBALANCER_PORT);
+	int webSock = createServerSocket(7000);
+
+	if (VERBOSE)
+		fprintf(stderr, "Webroot: 127.0.0.1\nPort: %d\n\n", 7000);
 
 	while (true) {
 		//eventually need to listen on 2 fds because of cookie server
@@ -140,6 +145,7 @@ int main(int argc, char *argv[])
 			die("Poll error", false);
 		//web socket
 		else if (fds[0].revents & POLLIN) {
+			//accept shit
 			struct sockaddr_in clientaddr;
 			socklen_t clientaddrlen = sizeof(clientaddr);
 			int clntSock = accept(webSock, (struct sockaddr*)&clientaddr, &clientaddrlen);
@@ -149,14 +155,34 @@ int main(int argc, char *argv[])
 			if (clntSock < 0)
 				continue;
 
+			char c_requestLine[BUFF_SIZE];
+			memset(c_requestLine, 0, sizeof(c_requestLine));
+
+			if (shutdownFlag)
+				die("shutdown");
+
+			//read shit
+			int i = read(clntSock, c_requestLine, sizeof(c_requestLine));
+			//read() error
+			if (i < -1)
+//				sendStatus(400);
+				die("read in loadbalancer", false);
+			//client closed connection
+			if (i == 0)
+				break;
+			if (VERBOSE)
+				fprintf(stderr, "[%d][WEB] C: {%s}\n", clntSock, c_requestLine);
+
+			//get LOAD for each fes
 			//account for dead servers later
 			vector<int> loads;
 			for (int sock: fe_ctrlSocks) {
-				int load = stoi(sendCommand(sock, "GETLOAD"));
+				string result = sendCommand(sock, "GETLOAD");
+				int load = stoi(result.substr(strlen("threads=")));
 				loads.push_back(load);
 			}
 
-			string fwdAddr = getFirstFreeServer(&loads);
+			string fwdAddr = getFirstFreeServer(loads);
 
 			redirect(clntSock, fwdAddr);
 		}

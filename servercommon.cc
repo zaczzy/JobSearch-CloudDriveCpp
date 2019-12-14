@@ -86,13 +86,6 @@ int createClientSocket(unsigned short port) {
 
 	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
 		die("connect failed", clntSock);
-
-	//Clear welcome message from socket
-	char buff[BUFF_SIZE];
-	memset(buff, 0, sizeof(buff));
-	read(clntSock, buff, sizeof(buff));
-	if (VERBOSE)
-		fprintf(stderr, "%s\n", buff);
-
+	//removed 'clear welcome msg'
 	return clntSock;
 }
