@@ -341,7 +341,7 @@ void* read_admin_commands(int client_fd)
         }
         if (ret == 0)
         {
-            continue;
+            break;
         }
 
         if (ret < 0)
@@ -461,7 +461,7 @@ void* run_server_for_admin(void* args)
     }
 
     /** Run until terminated by a SIGINT signal */
-    //while(true)
+    while(true)
     {
         int client_fd;
         client_fd = -1;
