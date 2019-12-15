@@ -14,7 +14,9 @@
 #include "logging.h"
 
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
-#define CHECKPOINT_FILE             "checkpoint.txt"
+
+extern bool result_ready;
+extern bool ask_master;
 
 typedef enum 
 {
@@ -1704,7 +1706,7 @@ void take_checkpoint()
         char new_ver_no_str[32];
         sprintf(new_ver_no_str, "%llu", version_no);
 
-        /** Write the updated sequence no to the file */
+        /** Write the updated version no to the file */
         fseek(file, 0, SEEK_SET);
         fwrite(new_ver_no_str, 1, strlen(new_ver_no_str), file);
         fclose(file);
@@ -1720,9 +1722,118 @@ void take_checkpoint()
     }
 }
 
+void write_checkpoint_to_file(char* data, unsigned long size)
+{
+    /** Open the checkpoint file in truncate mode */
+    FILE* file = fopen(CHECKPOINT_FILE, "w");
+
+    if (file == NULL)
+    {
+        if (verbose)
+            printf("unable to open log file for appending. Error : %s\n", strerror(errno));
+        
+        exit(EXIT_FAILURE);
+    }
+
+    unsigned long size_written = 0;
+
+    while (size_written != size)
+    {
+        size_written += fwrite(data + size_written, 1, size - size_written, file);
+    }
+
+    fclose(file);
+
+}
+
+void respond_with_seq_no(recovery_req req)
+{
+    recovery_resp resp;
+    strncpy(resp.prefix, "recovery_res", strlen("recovery_res"));
+    
+    if (req.log_sequence_no == get_log_sequence_no())
+    {
+        resp.seq_no_match = true;
+    }
+    else
+    {
+        resp.seq_no_match = false;
+        // TODO: Send the log diff
+    //resp.log_size = ;
+    }
+    
+    if (req.checkpoint_version_no == get_checkpoint_version_no())
+    {
+        resp.ver_no_match = true;
+    }
+    else
+    {
+        resp.ver_no_match = false;
+        // TODO: Send the checkpoint
+    //resp.checkpoint_size = ;
+    }
+}
+
 void recover()
 {
+    /** Ask primary from master */
+    result_ready = false;
+    ask_master = true;
+
+    while(!result_ready)
+        ;
+
+    /** Send the log sequence no and checkpoint version no to primary */
+    recovery_req s_no;
+   
+    strncpy(s_no.prefix, "seq_no", strlen("seq_no"));
+    s_no.log_sequence_no = get_log_sequence_no();
+    s_no.checkpoint_version_no = get_checkpoint_version_no();
+    // TODO: Send this structure to primary
+
+    /** Read the response of primary */
+    recovery_resp* res;
+    // TODO: Read the response
+
+    if (res->ver_no_match && res->seq_no_match)
+    {
+        /** Just replay the existing log */
+        replay_log();
+    }
+    else if (res->ver_no_match && !res->seq_no_match)
+    {
+        /** Read the new log from primary */
+        char* data;
+        unsigned long size;
+        // TODO: read new log from primary
+
+        /** Append the new log to log file */
+        update_log_file(data, size);
+
+        /** Replay the updated log file */
+        replay_log();
+    }
+    else if (!res->ver_no_match && !res->seq_no_match)
+    {
+        /** Read both the log and checkpoint from primary */
+        // TODO: Read the checkpoint, write as it is to the file
+        char* checkpoint;
+        unsigned long size;
+        write_checkpoint_to_file(checkpoint, size);
     
+        /** Populate tablet with checkpoint */
+        deserialize_tablet_from_file(CHECKPOINT_FILE);
+
+        // TODO: Read the log
+        char* data;
+        unsigned long log_size;
+        update_log_file(data, log_size);
+
+        /** Replay the log */
+        replay_log();
+    }
+
+    // TODO: Tell the master that I am ready to receive requests normally
 }
 
 

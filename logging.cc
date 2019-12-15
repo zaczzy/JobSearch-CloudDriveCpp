@@ -18,6 +18,88 @@ typedef struct
 extern bool verbose;
 std::ofstream ofs(LOG_FILE,std::fstream::app);
 
+unsigned long long get_log_sequence_no()
+{
+    FILE* file = fopen(LOG_SEQ_NO_FILE, "r");
+
+    if (file == NULL)
+    {
+        if (verbose)
+            printf("unable to open sequence no file. Error : %s\n", strerror(errno));
+        
+        exit(EXIT_FAILURE);
+    }
+
+    char* seq_no_str;
+    size_t len = 0;
+    int ret = getline(&seq_no_str, &len, file);
+
+    fclose(file);
+
+    printf("ret: %d, str: %s\n", ret, seq_no_str);
+    if (ret != -1)
+    {
+        return atoi(seq_no_str);
+    }
+    else
+    {
+        return -1;
+    }
+}
+
+unsigned long long get_checkpoint_version_no()
+{
+    FILE* file = fopen(CHECKPOINT_FILE, "r");
+
+    if (file == NULL)
+    {
+        if (verbose)
+            printf("unable to open sequence no file. Error : %s\n", strerror(errno));
+        
+        exit(EXIT_FAILURE);
+    }
+
+    char* seq_no_str;
+    size_t len = 0;
+    int ret = getline(&seq_no_str, &len, file);
+
+    fclose(file);
+
+    printf("ret: %d, str: %s\n", ret, seq_no_str);
+    if (ret != -1)
+    {
+        return atoi(seq_no_str);
+    }
+    else
+    {
+        return -1;
+    }
+
+}
+
+void update_log_file(char* data, unsigned long size)
+{
+    /** Open the file in append mode and add the data */
+    FILE* file = fopen(LOG_FILE, "a");
+
+    if (file == NULL)
+    {
+        if (verbose)
+            printf("unable to open log file for appending. Error : %s\n", strerror(errno));
+        
+        exit(EXIT_FAILURE);
+    }
+
+    unsigned long size_written = 0;
+
+    while (size_written != size)
+    {
+        size_written += fwrite(data + size_written, 1, size - size_written, file);
+    }
+
+    fclose(file);
+}
+
 int add_log_entry(op_type type, void* data)
 {
 #ifdef SERIALIZE

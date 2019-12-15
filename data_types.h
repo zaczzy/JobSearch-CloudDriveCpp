@@ -29,6 +29,23 @@
 
 #define LOG_SEQ_NO_FILE     "log_seq_no.txt"
 #define CHECKPOINT_VERSION_FILE     "checkpoint_version.txt"
+#define CHECKPOINT_FILE             "checkpoint.txt"
+
+typedef struct 
+{
+    char prefix[7];      // Should be "seq_no"
+    unsigned long long log_sequence_no;
+    unsigned long long checkpoint_version_no;
+}recovery_req;
+
+typedef struct
+{
+    char prefix[13];      // Should be "recovery_res"
+    bool seq_no_match;
+    bool ver_no_match;
+    unsigned long long log_size;
+    unsigned long long checkpoint_size;
+}recovery_resp;
 
 #ifdef SERIALIZE
 class SerializeCStringHelper {
