@@ -223,8 +223,10 @@ int main(int argc, char *argv[])
 	int controlSock = createServerSocket(controlPort);
 	//Client socket for backend
 	backendSock = createClientSocket(BACKEND_PORT);
+	//Manually signal when load balancer is ready
+	pause();
 	//Client socket for load balancer (for cookies??)
-//	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
+	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
 
 	//Clear welcome message from backend socket
 	char buff[BUFF_SIZE];
@@ -236,7 +238,7 @@ int main(int argc, char *argv[])
 	socks.insert(webSock);
 	socks.insert(controlSock);
 	socks.insert(backendSock);
-//	socks.insert(loadbalancerSock);
+	socks.insert(loadbalancerSock);
 
 	//Relay messages through backend
 	BackendRelay BR(backendSock);

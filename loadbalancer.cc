@@ -119,17 +119,16 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	//non option arguments
-//	if (optind >= argc)
-//		die("*** Author: Michal Porubcin (michal19)\n", -1);
-//	configID = atoi(argv[optind]);
 	char *configFile = (char*)"config_fes.txt";
-
-	//Create socket for fes control
-	readConfig_lb(configFile);
 
 	//Server socket for webclients (to redirect)
 	int webSock = createServerSocket(7000);
+	//Server socket for fes to connect to (for cookies)
+	int cookieSock = createServerSocket(9000);
+//	//Manually signal when load balancer is ready
+//	pause();
+	//Client sockets for fes control
+	readConfig_lb(configFile);
 
 	if (VERBOSE)
 		fprintf(stderr, "Webroot: 127.0.0.1\nPort: %d\n\n", 7000);

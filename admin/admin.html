@@ -1,0 +1,28 @@
+<html>
+
+<body>
+	<h1>Admin</h1>
+	<h2>Frontend List</h2>
+  <div>{{frontends}}</div>
+  <h2>Backend by Group</h2>
+  <div>{{backends}}</div>
+
+  <form action="/disable/frontend" method="post">
+    Frontend ID: <input type="number" name="fid"><br>
+    <button type="submit">Shutdown Frontend</button><br>
+  </form>
+
+  <form action="/disable/backend" method="post">
+    Backend Group: <input type="number" name="bgid"><br>
+    Backend ID: <input type="number" name="bid"><br>
+    <button type="submit">Shutdown Backend</button><br>
+  </form>
+
+  <form action="/restart/backend" method="post">
+    Backend Group: <input type="number" name="bgid"><br>
+    Backend ID: <input type="number" name="bid"><br>
+    <button type="submit">Shutdown Backend</button><br>
+  </form>
+
+</body>
+</html>
