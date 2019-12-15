@@ -14,11 +14,16 @@
 			<input type="file" name="upload_name" id="fileUpload">
 		</p>
 		<div>
-			<input type="submit" value="Send">
+			<input type="submit" value="Upload File">
 		</div>
 	</form>
+
 	<div><a href="{{parent_href}}">View parent directory</a></div>
 
+	<form action="/addfolder{{path}}" method="post">
+		<div><input type="text" name="newfdr_name"></div>
+		<div><input type="submit" value="Create Folder"></div>
+	</form>
 </body>
 
 </html>

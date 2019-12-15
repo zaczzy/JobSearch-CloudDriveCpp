@@ -108,6 +108,7 @@ typedef struct {
   char filename[256];
   uint64_t chunk_len;
   char data[CHUNK_SIZE];
+  bool has_more; // TODO: inform ritika
 } put_file_request;
 
 // GET file from directory
@@ -134,7 +135,7 @@ typedef struct {
   char username[32];
   char directory_path[1024]; // "r00t"
   char folder_name[256]; // "test"
-} create_folder_request;
+} create_folder_request; //TODO: ask ritika what's the return value
 
 // GET folder contents
 #pragma pack(1)

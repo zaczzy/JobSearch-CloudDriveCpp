@@ -1,6 +1,7 @@
 #include "storage_util.h"
 #include <string.h>
 #include <unistd.h>
+#include <algorithm>  // find
 #include <iostream>
 #include <sstream>  // istringstream
 #include "data_types.h"
@@ -57,7 +58,11 @@ void generate_display_list(std::string& to_replace,
     string real_fname = item.substr(1);
     if (item_type == 'D') {
       to_replace += "<div><a href=\"/ls" + current_path + "/" + real_fname +
-                    "\">View directory " + real_fname + "</a></div>";
+                    "\">View directory " + real_fname + "</a></div>" +
+                    "<form action=\"/rmfolder" + current_path + "/" +
+                    real_fname +
+                    "\" method=\"post\"><div><input type =\"submit\" "
+                    "value=\"Remove Folder\"></div></form>";
     } else if (item_type == 'F') {
       to_replace += "<div><a href=\"/download" + current_path + "/" +
                     real_fname + "\">Download file " + real_fname +
@@ -71,17 +76,43 @@ void split_filename(const std::string& str, std::string& path,
   path = str.substr(0, found);
   folder = str.substr(found + 1);
 }
-// TODO: implement
 bool request_file_download(const std::string& username,
                            const std::string& current_path,
                            const std::string& fname, BackendRelay* BR) {
-  return false;
+  std::vector<std::string> ls;
+  string path, folder;
+  split_filename(current_path, path, folder);
+  request_file_names(ls, path, username, folder, BR);
+  if (std::find(ls.begin(), ls.end(), fname.c_str()) == ls.end()) {
+    // fname in the list
+    return false;
+  }
+  // if file exists
+  get_file_request req;
+  memset(&req, 0, sizeof(req));
+  strcpy(req.prefix, "getfile");
+  strcpy(req.directory_path, current_path.c_str());
+  strcpy(req.username, username.c_str());
+  strcpy(req.filename, fname.c_str());
+  BR->sendFileRequest(&req);
+  return true;
 }
-// TODO: implement
 void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
                          BackendRelay* BR) {
-  *read_ready = false;
-  *f_len = 0;
+  get_file_response resp;
+  BR->recvChunk(&resp);
+  if (resp.chunk[CHUNK_SIZE - 1] != 0) {
+    // full chunk
+    char* tmp = new char[CHUNK_SIZE + 1];
+    memcpy(tmp, resp.chunk, CHUNK_SIZE);
+    tmp[CHUNK_SIZE] = 0;
+    chunk = tmp;
+    delete[] tmp;
+  } else {
+    chunk = resp.chunk;
+  }
+  *f_len = resp.f_len;
+  *read_ready = resp.has_more;
 }
 
 bool upload_next_part(int* total_body_read, std::string& filename, int sock,
@@ -139,15 +170,14 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   while (size_yet_to_send > CHUNK_SIZE) {
     confirmed = BR->sendChunk(username, directory_path, filename,
                               data.substr(chunk_id * CHUNK_SIZE, CHUNK_SIZE),
-                              CHUNK_SIZE);
+                              CHUNK_SIZE, true);
     chunk_id++;
     size_yet_to_send -= CHUNK_SIZE;
   }
   // last send chunk
-  confirmed =
-      BR->sendChunk(username, directory_path, filename,
-                    data.substr(CHUNK_SIZE * chunk_id), size_yet_to_send);
+  confirmed = BR->sendChunk(username, directory_path, filename,
+                            data.substr(CHUNK_SIZE * chunk_id),
+                            size_yet_to_send, false);
   // TODO: handle Backend confirmation
-
-  return ret_val;  
+  return ret_val;
 };

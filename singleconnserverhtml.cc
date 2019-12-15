@@ -118,7 +118,8 @@ void SingleConnServerHTML::sendHeaders(int length = 0) {
 /*
  * Sends just file headers.
  */
-void SingleConnServerHTML::sendFileHeaders(const string &fname, int length = 0) {
+void SingleConnServerHTML::sendFileHeaders(const string &fname,
+                                           int length = 0) {
   int statusCode = 200;
   // get corresponding reason in words
   string reason = status2reason[statusCode];
@@ -239,7 +240,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     string path, fname;                 // "/r00t", "f1"
     split_filename(URI, path, fname);
     // chunk download start
-    // TODO: check if file exists on the BR
+    // check if file exists on the BR
     bool read_ready = request_file_download(username, path, fname, BR);
     if (!read_ready) {
       cerr << "File not found on BR!" << endl;
@@ -287,8 +288,8 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     int total_body_read = 0;
     string upload_fname;
     while (should_read_next_part) {
-      should_read_next_part = upload_next_part(&total_body_read, upload_fname,
-                                               sock, boundary, username, URI, BR);
+      should_read_next_part = upload_next_part(
+          &total_body_read, upload_fname, sock, boundary, username, URI, BR);
     }
     // verify the content_length is indeed the length we have read
     if (content_length != 0) {
@@ -299,86 +300,116 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
       }
     }
     return;
-  }
-  char buff[BUFF_SIZE];
-  memset(buff, 0, sizeof(buff));
-  if (!requestURI.compare("/handle_login")) {
-    // parse login data e.g. user=michal&pass=p
-    const char *delim = "&\n";
-    char *c_user = strtok(body, delim);
-    char *c_pass = strtok(NULL, delim);
-    char *c_adduser = strtok(NULL, delim);
-    string user = c_user + strlen("user=");
-    string pass = c_pass + strlen("pass=");
-    //		cout << "\n===" << user << "," << pass << "===\n" << endl;
-
-    // Add new user
-    if (c_adduser != NULL && strlen(c_adduser) > 0) {
-      cout << "BYE" << endl;
-      //			string remember = adduser_str +
-      // strlen("adduser=");
-      string s_addCmd = "ADD " + user + " " + pass;
-      pthread_mutex_lock(&(BR->mutex_sock));
-      BR->sendCommand(s_addCmd);
-      pthread_mutex_unlock(&(BR->mutex_sock));
-
-      // redirect to login page
-      // TODO: add message stating account add successful
-      string HTML = readHTMLFromFile("templates/login.html");
-      sendHeaders(HTML.length());
-      sendMsg(HTML);
-      return;
+  } else if (requestURI.find("/addfolder") == 0) {
+    string current_path = requestURI.substr(10);
+    string newfdr_name = body;
+    newfdr_name = newfdr_name.substr(newfdr_name.find("newfdr_name=") + 12);
+    create_folder_request req;
+    memset(&req, 0, sizeof(req));
+    strcpy(req.directory_path, current_path.c_str());
+    strcpy(req.folder_name, newfdr_name.c_str());
+    strcpy(req.username, username.c_str());
+    strcpy(req.prefix, "mkfolder");
+    if (!BR->createFolderRequest(&req)) {
+      cerr << "POST /addfolder failure!" << endl;
     }
-
-    // Authenticate
-    string s_authCmd = "AUTH " + user + " " + pass;
-    string authResult = BR->sendCommand(s_authCmd);
-    string okerr = authResult.substr(0, 3);
-    // if invalid credentials
-    if (authResult.substr(0, 3).compare("+OK") != 0) {
-      cout << "HI" << endl;
-
-      //		//hardcoded user/pass:
-      //		if (user.compare("michal") != 0 || pass.compare("p") !=
-      // 0) { redirect to login page
-      // TODO: add message stating invalid credentials
-      string HTML = readHTMLFromFile("templates/login.html");
-      sendHeaders(HTML.length());
-      sendMsg(HTML);
-      return;
+  } else if (requestURI.find("/rmfolder") == 0) {
+    string folder_path = requestURI.substr(9);
+    string path, folder;
+    split_filename(folder_path, path, folder);
+    delete_folder_content_request req;
+    memset(&req, 0, sizeof(req));
+    strcpy(req.directory_path, path.c_str());
+    strcpy(req.folder_name, folder.c_str());
+    strcpy(req.username, username.c_str());
+    strcpy(req.prefix, "delfolder");
+    if (!BR->removeFolderRequest(&req)) {
+      cerr << "POST /rmfolder failure!" << endl;
     }
+  } else {
+    // non-file-related
+    char buff[BUFF_SIZE];
+    memset(buff, 0, sizeof(buff));
+    if (!requestURI.compare("/handle_login")) {
+      // parse login data e.g. user=michal&pass=p
+      const char *delim = "&\n";
+      char *c_user = strtok(body, delim);
+      char *c_pass = strtok(NULL, delim);
+      char *c_adduser = strtok(NULL, delim);
+      string user = c_user + strlen("user=");
+      string pass = c_pass + strlen("pass=");
+      //		cout << "\n===" << user << "," << pass << "===\n" <<
+      //endl;
 
-    sendCookie = true;
-    username = user;
-    pthread_mutex_lock(&(CR->mutex_sock));
-    cookieValue = CR->genCookie(username);
-    pthread_mutex_unlock(&(CR->mutex_sock));
-    requestURI = redirectTo;
-    redirectTo = "";
-    handleGET();
-  }
-  // from some kind of compose_email.html
-  else if (!requestURI.compare("/send_mail")) {
-    // SEND_MAIL
-    // parse data e.g. msg=NoobDown&rcpt=Me
-    const char *delim = "&\n";
-    char *c_rcpt = strtok(body, delim);
-    char *c_msg = strtok(NULL, delim);
-    string rcpt = c_rcpt + strlen("rcpt=");
-    string msg = c_msg + strlen("msg=");
+      // Add new user
+      if (c_adduser != NULL && strlen(c_adduser) > 0) {
+        cout << "BYE" << endl;
+        //			string remember = adduser_str +
+        // strlen("adduser=");
+        string s_addCmd = "ADD " + user + " " + pass;
+        pthread_mutex_lock(&(BR->mutex_sock));
+        BR->sendCommand(s_addCmd);
+        pthread_mutex_unlock(&(BR->mutex_sock));
 
-    // throwaway buffer
-    char b[BUFF_SIZE];
-    //		webserver_core(2, (char*)username.c_str(), -1, (char
-    //*)msg.c_str(), (char *)rcpt.c_str(), b, backendSock); handle differently
-    // on failure?
-  } else if (!requestURI.compare("/delete_mail")) {
-    // DELETE_MAIL
-    // parse data e.g. emailid=777
-    string email_id = body + strlen("emailid=");
-    char b[BUFF_SIZE];
-    //		webserver_core(3, (char*)username.c_str(), stoi(email_id),
-    // EMPTYSTR, EMPTYSTR, b, backendSock); handle differently on failure?
+        // redirect to login page
+        // TODO: add message stating account add successful
+        string HTML = readHTMLFromFile("templates/login.html");
+        sendHeaders(HTML.length());
+        sendMsg(HTML);
+        return;
+      }
+
+      // Authenticate
+      string s_authCmd = "AUTH " + user + " " + pass;
+      string authResult = BR->sendCommand(s_authCmd);
+      string okerr = authResult.substr(0, 3);
+      // if invalid credentials
+      if (authResult.substr(0, 3).compare("+OK") != 0) {
+        cout << "HI" << endl;
+
+        //		//hardcoded user/pass:
+        //		if (user.compare("michal") != 0 || pass.compare("p") !=
+        // 0) { redirect to login page
+        // TODO: add message stating invalid credentials
+        string HTML = readHTMLFromFile("templates/login.html");
+        sendHeaders(HTML.length());
+        sendMsg(HTML);
+        return;
+      }
+
+      sendCookie = true;
+      username = user;
+      pthread_mutex_lock(&(CR->mutex_sock));
+      cookieValue = CR->genCookie(username);
+      pthread_mutex_unlock(&(CR->mutex_sock));
+      requestURI = redirectTo;
+      redirectTo = "";
+      handleGET();
+    }
+    // from some kind of compose_email.html
+    else if (!requestURI.compare("/send_mail")) {
+      // SEND_MAIL
+      // parse data e.g. msg=NoobDown&rcpt=Me
+      const char *delim = "&\n";
+      char *c_rcpt = strtok(body, delim);
+      char *c_msg = strtok(NULL, delim);
+      string rcpt = c_rcpt + strlen("rcpt=");
+      string msg = c_msg + strlen("msg=");
+
+      // throwaway buffer
+      char b[BUFF_SIZE];
+      //		webserver_core(2, (char*)username.c_str(), -1, (char
+      //*)msg.c_str(), (char *)rcpt.c_str(), b, backendSock); handle differently
+      // on failure?
+    } else if (!requestURI.compare("/delete_mail")) {
+      // DELETE_MAIL
+      // parse data e.g. emailid=777
+      string email_id = body + strlen("emailid=");
+      char b[BUFF_SIZE];
+      //		webserver_core(3, (char*)username.c_str(),
+      //stoi(email_id),
+      // EMPTYSTR, EMPTYSTR, b, backendSock); handle differently on failure?
+    }
   }
 }
 
@@ -510,7 +541,7 @@ void SingleConnServerHTML::backbone() {
       // standard case; just proceed
     }
 
-    // TODO: implement POST upload check
+    // POST upload check
     bool is_multipart_form = false;
     string boundary;
     int content_length = 0;
