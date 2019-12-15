@@ -1,0 +1,10 @@
+There are basically four different functions to consider when handling email:
+
+Accepting emails from remote users (outside your system) and delivering them to the relevant inbox;
+Letting users view the contents of their inbox;
+Sending emails to local users; and
+Sending emails to remote users outside your system.
+
+Function #1 requires a SMTP server that a client such as Thunderbird can connect to. This is not much different than what you've done for the homeworks, except that the emails are now going to be stored in the backend and not in an mbox file. Function #3 can be done simply by storing the emails in the backend. Function #4 will require a simple SMTP client that can connect to remote SMTP servers (e.g., Gmail's). So I guess we're really talking about Function #3 here. If I recall correctly, the only thing that the handout specifically requires is that users be able to view their mails from the webmail service, i.e., using their browsers. It does make sense to allow POP3 as well, so users can view their mails with Thunderbird instead, and this shouldn't be too difficult, given that you've already written a POP3 server. But this is not required.
+
+Does this help?

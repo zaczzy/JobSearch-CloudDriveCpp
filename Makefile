@@ -1,19 +1,20 @@
-GCC=g++
-CFLAGS=-Wall -g -lpthread -lboost_serialization  
-OBJ = socket.o  key_value.o thread.o logging.o
+TARGETS = lb fes mailclient storage_server storage_server
 
-storage_server: storage_server.cc $(OBJ)
-	$(GCC) $^ $(CFLAGS) -o $@ 
+cloud:
+	make -f Makefile_fes
+	make -f Makefile_lb
 
-%.o: %.c 
-	$(CC) $(CFLAGS) -c -o $@ $< 
+fes:
+	make -f Makefile_fes
 
-pack:
-	rm -f submit-hw2.zip
-	zip -r cis505-project.zip *.cc *.h README Makefile
+lb:
+	make -f Makefile_lb
+	
+nishanth:
+	make -f Makefile_nishanth
 
-clean::
-	rm -fv $(TARGETS) *~ main *.o storage_server
-
-realclean:: clean
-	rm -fv cis505-project.zip
+ritika:
+	make -f Makefile_ritika
+	
+clean:
+	rm -fv $(TARGETS) *.o

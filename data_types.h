@@ -1,11 +1,11 @@
 #ifndef DATA_TYPES_H
 #define DATA_TYPES_H
 
-#include <cstdint>
-#include <cstring>
 #include <vector>
 
 #define SERIALIZE
+#include <string.h>
+#include <stdint.h>
 
 #ifdef SERIALIZE
 #include <fstream>

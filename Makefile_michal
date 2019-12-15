@@ -1,0 +1,21 @@
+CC=g++
+CFLAGS=-Wall -g -pthread
+
+TARGETS = cloud
+#TARGETS = servercommon frontendserver singleconnserverhtml singleconnservercontrol \
+#	cookierelay backendrelay mailservice
+#
+all: $(TARGETS)
+
+%.o: %.cc %.h
+	$(CC) $(CFLAGS) -ggdb -o $@ -c $<
+
+cloud: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o 
+	$(CC) $(CFLAGS) $^ -o $@
+
+pack:
+	rm -f submit-finalproject.zip
+	zip -r submit-finalproject.zip *.cc README Makefile
+
+clean:
+	rm -fv $(TARGETS) *.o

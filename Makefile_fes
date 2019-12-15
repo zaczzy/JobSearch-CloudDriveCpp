@@ -1,0 +1,18 @@
+CC=g++
+CFLAGS=-Wall -g -pthread
+
+TARGETS = fes
+all: $(TARGETS)
+
+%.o: %.cc %.h
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+fes: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o 
+	$(CC) $(CFLAGS) $^ -o $@
+
+pack:
+	rm -f submit-finalproject.zip
+	zip -r submit-finalproject.zip *.cc README Makefile
+
+clean:
+	rm -fv $(TARGETS) *.o
