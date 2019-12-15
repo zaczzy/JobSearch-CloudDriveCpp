@@ -72,6 +72,8 @@ void readConfig_lb(char *configFile) {
 		int cPort = stoi(controlAddr.substr(pos3+1));
 
 		int fe_ctrlSock = createClientSocket(cPort);
+		if (fe_ctrlSock < 0)
+			continue;
 		fe_ctrlSocks.push_back(fe_ctrlSock);
 		fe_fwdAddrs.push_back(webAddr);
 

@@ -346,7 +346,6 @@ void SingleConnServerHTML::backbone() {
 	if (VERBOSE)
 		fprintf(stderr, "[%d][WEB] S: +OK server ready [localhost]\r\n", sock);
 
-	int i = 0;
 	while (true) {
 		cout << "BBBBBBBB" << endl;
 		//Can't use fgets because POST body is binary data
@@ -471,7 +470,6 @@ void SingleConnServerHTML::backbone() {
 			handleGET(true);
 		else
 			sendStatus(501);
-	i += 1;
 	}
 	close(sock);
 }

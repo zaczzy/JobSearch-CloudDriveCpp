@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
 	//Control socket for load balancer
 	int controlSock = createServerSocket(controlPort);
 	//Client socket for backend
-//	backendSock = createClientSocket(BACKEND_PORT);
+	backendSock = createClientSocket(BACKEND_PORT);
 	if (VERBOSE)
 		fprintf(stderr, "S: connected to [%d] (B)!\n", backendSock);
 	//Manually signal when load balancer is ready
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
 	socks.insert(loadbalancerSock);
 
 	//Relay messages through backend
-//	BackendRelay BR(backendSock);
+	BackendRelay BR(backendSock);
 	//Relay cookies with load balancer
 	CookieRelay CR(loadbalancerSock);
 	while (true) {
@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 			args.clntSock = clntSock;
 			args.webroot = webIP;
 			args.CR = &CR;
-			args.BR = NULL; //&BR
+			args.BR = &BR; //&BR
 
 			pthread_t ntid;
 			if (pthread_create(&ntid, NULL, webThreadFunc, (void *)&args) != 0)
