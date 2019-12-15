@@ -168,9 +168,9 @@ static void render_admin_page(int conn_fd) {
 }
 
 void disable_frontend(string body, int conn_fd) {
-  int id = stoi(body.substr(strlen("fid=")));
-  int thread_id =
-      frontends[id].key;  // location which thread is supposed to do the job
+  size_t id = (size_t) stoi(body.substr(strlen("fid=")));
+  size_t thread_id =
+      (size_t) frontends[id].key;  // location which thread is supposed to do the job
   msgs_to_send[thread_id] = "DISABLE";
   frontends[id].status = Dead;
 }
@@ -179,9 +179,9 @@ void disable_backend(string body, int conn_fd) {
   size_t i_sep = body.find("&");
   string s_bgid = body.substr(0, i_sep);
   string s_bid = body.substr(i_sep + 1);
-  int bgid = stoi(s_bgid.substr(strlen("bgid=")));
-  int bid = stoi(s_bid.substr(strlen("bid=")));
-  int thread_id = groups[bgid][bid].key;
+  size_t bgid = (size_t)stoi(s_bgid.substr(strlen("bgid=")));
+  size_t bid = (size_t)stoi(s_bid.substr(strlen("bid=")));
+  size_t thread_id = (size_t)groups[bgid][bid].key;
   msgs_to_send[thread_id] = "disable";
   groups[bgid][bid].status = Dead;
 }
@@ -190,9 +190,9 @@ void restart_backend(string body, int conn_fd) {
   size_t i_sep = body.find("&");
   string s_bgid = body.substr(0, i_sep);
   string s_bid = body.substr(i_sep + 1);
-  int bgid = stoi(s_bgid.substr(strlen("bgid=")));
-  int bid = stoi(s_bid.substr(strlen("bid=")));
-  int thread_id = groups[bgid][bid].key;
+  size_t bgid = (size_t)stoi(s_bgid.substr(strlen("bgid=")));
+  size_t bid = (size_t)stoi(s_bid.substr(strlen("bid=")));
+  size_t thread_id = (size_t) groups[bgid][bid].key;
   msgs_to_send[thread_id] = "restart";
   groups[bgid][bid].status = Alive;
 }
