@@ -28,10 +28,49 @@ void die(string msg, bool isThread){
 /*
  * Used prior to a connect() to a server which hasn't been setup yet.
  */
-void pause() {
+void pauseBeforeConnect() {
 	string beans;
 	cout << "Pausing for setup of other servers..." << endl;
 	cin >> beans;
+}
+
+/*
+ * Accepts a connection from a client.
+ */
+int acceptClient(int webSock) {
+	//accept shit
+	struct sockaddr_in clientaddr;
+	socklen_t clientaddrlen = sizeof(clientaddr);
+	int clntSock = accept(webSock, (struct sockaddr*)&clientaddr, &clientaddrlen);
+//	if (shutdownFlag)
+//		cleanup();
+	return clntSock;
+}
+
+/*
+ * Read from the client
+ */
+string readClient(int clntSock, bool *b_break) {
+	char c_requestLine[BUFF_SIZE];
+	memset(c_requestLine, 0, sizeof(c_requestLine));
+
+	if (shutdownFlag)
+		die("shutdown");
+
+	int i = read(clntSock, c_requestLine, sizeof(c_requestLine));
+	//read() error
+	if (i < -1)
+//		sendStatus(400);
+		die("read in loadbalancer", false);
+	//client closed connection
+	if (i == 0) {
+		cout << c_requestLine << "====Other closed socket [" << clntSock << "]" << endl;
+		*b_break = true;
+		return "";
+	}
+	//from strtok single character delimiter, modify in-place, char * hell to string paradise
+	string requestLine = c_requestLine;
+	return requestLine;
 }
 
 /*
@@ -61,12 +100,12 @@ int createServerSocket(unsigned short port){
 	if (listen(servSock, 10) < 0)
 		die("listen() failed", servSock);
 
-	//Nonblocking
-	int flags = fcntl(servSock, F_GETFL, 0);
-	if (flags < 0)
-		die("ERR fcntl() failed\n", servSock);
-	if (fcntl(servSock, F_SETFL, flags | O_NONBLOCK))
-		die("ERR fcntl() 2 failed\n", servSock);
+//	//Nonblocking
+//	int flags = fcntl(servSock, F_GETFL, 0);
+//	if (flags < 0)
+//		die("ERR fcntl() failed\n", servSock);
+//	if (fcntl(servSock, F_SETFL, flags | O_NONBLOCK))
+//		die("ERR fcntl() 2 failed\n", servSock);
 
 	return servSock;
 }

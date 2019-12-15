@@ -18,8 +18,19 @@ using namespace std;
 
 vector<int> fe_ctrlSocks;
 vector<string> fe_fwdAddrs;
+set<pthread_t> cookieThreads;
 set<int> socks; //for cleanup
 //Cookie storage here
+
+int latestCookie = 0;
+map<int, string> cookie2Browser;
+
+/*
+ * Struct for passing multiple parameters to cookieThreadFunc()
+ */
+struct cookie_thread_struct {
+    int clntSock;
+};
 
 /*
  * Function for exiting main thread cleanly after interrupt
@@ -60,8 +71,12 @@ void readConfig_lb(char *configFile) {
 		string cIP = controlAddr.substr(0,pos3);
 		int cPort = stoi(controlAddr.substr(pos3+1));
 
-		fe_ctrlSocks.push_back(createClientSocket(cPort));
+		int fe_ctrlSock = createClientSocket(cPort);
+		fe_ctrlSocks.push_back(fe_ctrlSock);
 		fe_fwdAddrs.push_back(webAddr);
+
+		if (VERBOSE)
+			fprintf(stderr, "LB: connected to [%d] (FES)!\n", fe_ctrlSock);
 	}
 }
 
@@ -102,6 +117,58 @@ void redirect(int clntSock, string fwdAddr){
 		fprintf(stderr, "[%d][WEB] LB: %s", clntSock, m);
 }
 
+void *cookieThreadFunc(void *args) {
+	struct cookie_thread_struct *a = (struct cookie_thread_struct *)args;
+	int clntSock = (intptr_t)(a->clntSock);
+
+	if (VERBOSE)
+		fprintf(stderr, "[%d][COOK] LB: +OK server ready [localhost]\r\n", clntSock);
+
+	while (true) {
+		//read shit
+		bool b_break = false;
+		string requestLine = readClient(clntSock, &b_break);
+		if (b_break)
+			break;
+
+		if (VERBOSE)
+			fprintf(stderr, "[%d][COOK] FES: {%s}\n", clntSock, (char *)requestLine.c_str());
+
+		//parse command
+		int i_sep = requestLine.find(" ");
+		string command = requestLine.substr(0,i_sep);
+		string payload = requestLine.substr(i_sep+1);
+		if (command.compare("GEN") == 0) {
+			//payload == browser
+			cookie2Browser[++latestCookie] = payload;
+			string msg = to_string(latestCookie);
+			char *m = (char *)msg.c_str();
+			int i = write(clntSock, m, strlen(m));
+			if (VERBOSE)
+				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
+			//check i == 0
+		}
+		else if (command.compare("FETCH") == 0) {
+			//payload == cookie
+			int cookie = stoi(payload);
+			string msg = "name=";
+			if (cookie2Browser.find(cookie) != cookie2Browser.end())
+				msg += cookie2Browser[cookie];
+			char *m = (char *)msg.c_str();
+			int i = write(clntSock, m, strlen(m));
+			if (VERBOSE)
+				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
+		}
+		else {
+			die("bad command");
+		}
+	}
+//	SingleConnServerCookie S(clntSock);
+//	S.backbone();
+	socks.erase(clntSock);
+	close(clntSock);
+}
+
 int main(int argc, char *argv[])
 {
 	//Handle options
@@ -119,58 +186,50 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (VERBOSE)
+		fprintf(stderr, "Webroot: 127.0.0.1\nPort: %d\n\n", WEB_PORT);
+
 	char *configFile = (char*)"config_fes.txt";
 
 	//Server socket for webclients (to redirect)
-	int webSock = createServerSocket(7000);
+	int webSock = createServerSocket(WEB_PORT);
 	//Server socket for fes to connect to (for cookies)
-	int cookieSock = createServerSocket(9000);
+	int cookieSock = createServerSocket(COOKIE_PORT);
 //	//Manually signal when load balancer is ready
-//	pause();
+//	pauseBeforeConnect();
 	//Client sockets for fes control
 	readConfig_lb(configFile);
 
-	if (VERBOSE)
-		fprintf(stderr, "Webroot: 127.0.0.1\nPort: %d\n\n", 7000);
-
 	while (true) {
 		//eventually need to listen on 2 fds because of cookie server
-		struct pollfd fds[1];
+		struct pollfd fds[2];
 		fds[0].fd = webSock;
 		fds[0].events = POLLIN;
-		int ret = poll(fds, 1, 500);
+		fds[1].fd = cookieSock;
+		fds[1].events = POLLIN;
+		int ret = poll(fds, 2, 500);
 		//poll error
 		if (ret == -1)
 			die("Poll error", false);
 		//web socket
 		else if (fds[0].revents & POLLIN) {
+			cout << "web" << endl;
 			//accept shit
-			struct sockaddr_in clientaddr;
-			socklen_t clientaddrlen = sizeof(clientaddr);
-			int clntSock = accept(webSock, (struct sockaddr*)&clientaddr, &clientaddrlen);
-			socks.insert(clntSock);
-			if (shutdownFlag)
-				cleanup();
+			int clntSock = acceptClient(webSock);
 			if (clntSock < 0)
 				continue;
-
-			char c_requestLine[BUFF_SIZE];
-			memset(c_requestLine, 0, sizeof(c_requestLine));
-
-			if (shutdownFlag)
-				die("shutdown");
-
+			socks.insert(clntSock);
 			//read shit
-			int i = read(clntSock, c_requestLine, sizeof(c_requestLine));
-			//read() error
-			if (i < -1)
-//				sendStatus(400);
-				die("read in loadbalancer", false);
-			//client closed connection
-			if (i == 0)
-				break;
+			bool b_break = false;
+			string requestLine = readClient(clntSock, &b_break);
+			if (b_break) {
+				close(clntSock);
+				socks.erase(clntSock);
+				continue;
+			}
+
 			if (VERBOSE)
-				fprintf(stderr, "[%d][WEB] C: {%s}\n", clntSock, c_requestLine);
+				fprintf(stderr, "[%d][WEB] C: {%s}\n", clntSock, (char *)requestLine.c_str());
 
 			//get LOAD for each fes
 			//account for dead servers later
@@ -184,6 +243,31 @@ int main(int argc, char *argv[])
 			string fwdAddr = getFirstFreeServer(loads);
 
 			redirect(clntSock, fwdAddr);
+			//*socket closed*
+		}
+		//cookie socket
+		else if (fds[1].revents & POLLIN) {
+			cout << "cookie" << endl;
+//			if (controlThreads.size() > MAX_CTRL_CLNT)
+//				continue;
+			//accept shit
+			int clntSock = acceptClient(cookieSock);
+			if (clntSock < 0)
+				continue;
+			socks.insert(clntSock);
+
+//			int clntSock = acceptClient(controlSock);
+//			if (clntSock < 0)
+//				continue;
+
+			struct cookie_thread_struct args;
+			args.clntSock = clntSock;
+
+			pthread_t ntid;
+			if (pthread_create(&ntid, NULL, cookieThreadFunc, (void *)&args) != 0)
+				cleanup();
+			pthread_detach(ntid);
+			cookieThreads.insert(ntid);
 		}
 	}
 }

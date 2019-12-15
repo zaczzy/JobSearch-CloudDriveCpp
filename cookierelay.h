@@ -23,6 +23,8 @@ public:
 
 	pthread_mutex_t mutex_sock;
 private:
+	string sendCommand(string command);
+
 	int sock;
 	int latestCookie;
 	map<int, string> cookie2Browser;
