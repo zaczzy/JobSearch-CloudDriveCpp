@@ -1,4 +1,7 @@
 #include <cstring>
+#include <sys/types.h>
+#include <unistd.h>
+#include <signal.h>
 
 #include "servercommon.h"
 #include "singleconnservercontrol.h"
@@ -83,6 +86,9 @@ void SingleConnServerControl::backbone() {
 			int load = webThreads->size();
 			string msg = "threads=" + to_string(load);
 			sendMsg(msg);
+		}
+		else if (req.compare("DISABLE") == 0) {
+			kill(getpid(), SIGTERM);
 		}
 
 	}

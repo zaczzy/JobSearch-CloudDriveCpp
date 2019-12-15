@@ -234,11 +234,25 @@ int main(int argc, char *argv[])
 			//get LOAD for each fes
 			//account for dead servers later
 			vector<int> loads;
+			vector<int> updatedSocks;
+			vector<string> updatedAddrs;
+			int z = 0;
 			for (int sock: fe_ctrlSocks) {
 				string result = sendCommand(sock, "GETLOAD");
-				int load = stoi(result.substr(strlen("threads=")));
-				loads.push_back(load);
+				if (result.empty()) {
+					close(sock);
+					socks.erase(sock);
+				}
+				else {
+					int load = stoi(result.substr(strlen("threads=")));
+					loads.push_back(load);
+					updatedSocks.push_back(sock);
+					updatedAddrs.push_back(fe_fwdAddrs[z]);
+				}
+				z++;
 			}
+			fe_ctrlSocks = updatedSocks;
+			fe_fwdAddrs = updatedAddrs;
 
 			string fwdAddr = getFirstFreeServer(loads);
 
