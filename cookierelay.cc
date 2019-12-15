@@ -1,3 +1,6 @@
+#include <cstring>
+#include <iostream>
+
 #include "servercommon.h"
 #include "cookierelay.h"
 
@@ -46,18 +49,36 @@ CookieRelay::~CookieRelay() {
 //	%&&&%&&&&&%&&&@&&&@&&&&%%@&&&&%#&&%#%&&&%%&%&&&&&&***,**/*,**,(//**#(#((//(**,,
 //	#&%&&&%%&&&&&%&%&&%%%%&&&&&@&%&&&&%%%&%&&&&&&%*(**//(/((//#((((#&%###%##/*,
 }
+
+/*
+ * Send command to cookie store (load balancer)
+ */
+string CookieRelay::sendCommand(string command) {
+	char *c_command = (char *)command.c_str();
+	char buff[BUFF_SIZE];
+	memset(buff, 0, sizeof(buff));
+	write(sock, c_command, command.length());
+	if (VERBOSE)
+		fprintf(stderr, "[%d][COOK] S: %s\n", sock, c_command);
+	int i = read(sock, buff, sizeof(buff));
+	if (VERBOSE)
+		fprintf(stderr, "[%d][COOK] LB: %s\n", sock, buff);
+	string result = buff;
+	return result;
+}
+
 /*
  * Generate a cookie for a new browser
  */
 int CookieRelay::genCookie(string browser) {
-	//race condition?? hopefully not
-	cookie2Browser[++latestCookie] = browser;
-	return latestCookie;
+	string command = "GEN " + browser;
+	return stoi(sendCommand(command));
 }
 
 /*
  * Fetch a browser using an existing cookie
  */
 string CookieRelay::fetchBrowser(int cookie) {
-	return cookie2Browser[cookie];
+	string command = "FETCH " + to_string(cookie);
+	return sendCommand(command);
 }

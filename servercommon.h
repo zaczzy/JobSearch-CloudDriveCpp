@@ -18,6 +18,9 @@ using namespace std;
 
 //static void sigintHandler(int signum);
 void die(string msg, bool isThread=true);
+void pauseBeforeConnect();
+int acceptClient(int webSock);
+string readClient(int clntSock, bool *b_break);
 //void cleanup();
 int createServerSocket(unsigned short port);
 int createClientSocket(unsigned short port);

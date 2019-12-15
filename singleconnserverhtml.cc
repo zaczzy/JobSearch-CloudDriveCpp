@@ -150,7 +150,6 @@ string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
 		fprintf(stderr, "[%d][WEB] S: Generating Inbox... [localhost]\r\n", sock);
 	string HTML = "<html><body><h1>Inbox</h1>"
 			"<a href='/mail/compose'>Send Mail</a><br><br>";
-	cout << resp->num_emails << "aaa" << endl;
 	for (int i=0; i < (int)(resp->num_emails); i++) {
 		email_header head = resp->email_headers[i];
 		string from = head.from;
@@ -347,32 +346,40 @@ void SingleConnServerHTML::backbone() {
 	if (VERBOSE)
 		fprintf(stderr, "[%d][WEB] S: +OK server ready [localhost]\r\n", sock);
 
+	int i = 0;
 	while (true) {
+		cout << "BBBBBBBB" << endl;
 		//Can't use fgets because POST body is binary data
 		//Can't use fread because it blocks (size of POST body variable)
 		//Can't use fgets for GET and read for POST because buffered read interferes with standalone read
 		//And I don't want to use nonblocking sockets
 		//Can't use strtok because of multichar delimiters \r\n and \r\n\r\n
 
-		char c_requestLine[BUFF_SIZE];
-		memset(c_requestLine, 0, sizeof(c_requestLine));
-
-		if (shutdownFlag)
-			die("shutdown");
-
-		int i = read(sock, c_requestLine, sizeof(c_requestLine));
-		//read() error
-		if (i < -1)
-			sendStatus(400);
-		//client closed connection
-		if (i == 0)
+//		char c_requestLine[BUFF_SIZE];
+//		memset(c_requestLine, 0, sizeof(c_requestLine));
+//
+//		if (shutdownFlag)
+//			die("shutdown");
+//
+//		int i = read(sock, c_requestLine, sizeof(c_requestLine));
+//		//read() error
+//		if (i < -1)
+//			sendStatus(400);
+//		//client closed connection
+//		if (i == 0)
+//			break;
+//		if (VERBOSE)
+//			fprintf(stderr, "[%d][WEB] C: {%s}\n", sock, c_requestLine);
+//
+//
+//		//from strtok single character delimiter, modify in-place, char * hell to string paradise
+		bool b_break;
+		string requestLine = readClient(sock, &b_break);
+		if (b_break)
 			break;
+
 		if (VERBOSE)
-			fprintf(stderr, "[%d][WEB] C: {%s}\n", sock, c_requestLine);
-
-
-		//from strtok single character delimiter, modify in-place, char * hell to string paradise
-		string requestLine = c_requestLine;
+			fprintf(stderr, "[%d][WEB] C: {%s}\n", sock, (char *)requestLine.c_str());
 
 		vector<string> headers;
 		string body;
@@ -429,15 +436,19 @@ void SingleConnServerHTML::backbone() {
 			}
 		}
 		//existing cookie, new connection
-		//SECURITY FAIL
 		else if (receivedCookie != -1 && cookieValue == -1) {
 			cout << "(B)" << endl;
 			//login automatically: will only work when cookie server is separate from singleconnserverhtml
 			//for now, just proceed (manual login)
-//			pthread_mutex_lock(&(CR->mutex_sock));
-//			username = CR->fetchBrowser(receivedCookie);
-//			cookieValue = receivedCookie;//CR->genCookie(username);
-//			pthread_mutex_unlock(&(CR->mutex_sock));
+			pthread_mutex_lock(&(CR->mutex_sock));
+			string response = CR->fetchBrowser(receivedCookie);
+			pthread_mutex_unlock(&(CR->mutex_sock));
+			string name = response.substr(strlen("name="));
+			if (response.compare("name=") != 0) {
+				username = name;
+				cookieValue = receivedCookie;//CR->genCookie(username);
+			}
+			//else: login again
 		}
 		//no cookie, existing connection
 		else if (receivedCookie == -1 && cookieValue != -1) {
@@ -460,6 +471,7 @@ void SingleConnServerHTML::backbone() {
 			handleGET(true);
 		else
 			sendStatus(501);
+	i += 1;
 	}
 	close(sock);
 }

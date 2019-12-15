@@ -152,6 +152,7 @@ void *webThreadFunc(void *args){
 	SingleConnServerHTML S(clntSock, webroot, CR, BR);
 	S.backbone();
 	close(clntSock);
+	socks.erase(clntSock);
 }
 
 /*
@@ -165,6 +166,7 @@ void *controlThreadFunc(void *args){
 	SingleConnServerControl S(clntSock, &webThreads);
 	S.backbone();
 	close(clntSock);
+	socks.erase(clntSock);
 }
 
 /*
@@ -223,8 +225,14 @@ int main(int argc, char *argv[])
 	int controlSock = createServerSocket(controlPort);
 	//Client socket for backend
 	backendSock = createClientSocket(BACKEND_PORT);
+	if (VERBOSE)
+		fprintf(stderr, "S: connected to [%d] (B)!\n", backendSock);
+	//Manually signal when load balancer is ready
+	pauseBeforeConnect();
 	//Client socket for load balancer (for cookies??)
-//	loadbalancerSock = createClientSocket(LOADBALANCER_PORT);
+	loadbalancerSock = createClientSocket(COOKIE_PORT);
+	if (VERBOSE)
+		fprintf(stderr, "S: connected to [%d] (LB)!\n", loadbalancerSock);
 
 	//Clear welcome message from backend socket
 	char buff[BUFF_SIZE];
@@ -236,7 +244,7 @@ int main(int argc, char *argv[])
 	socks.insert(webSock);
 	socks.insert(controlSock);
 	socks.insert(backendSock);
-//	socks.insert(loadbalancerSock);
+	socks.insert(loadbalancerSock);
 
 	//Relay messages through backend
 	BackendRelay BR(backendSock);
@@ -254,14 +262,10 @@ int main(int argc, char *argv[])
 			die("Poll error", false);
 		//web socket
 		else if (fds[0].revents & POLLIN) { //Possibly change else if to if
+			cout << "AAAAAAAAA" << endl;
 			if (webThreads.size() > MAX_WEB_CLNT)
 				continue;
-			struct sockaddr_in clientaddr;
-			socklen_t clientaddrlen = sizeof(clientaddr);
-			int clntSock = accept(webSock, (struct sockaddr*)&clientaddr, &clientaddrlen);
-			socks.insert(clntSock);
-			if (shutdownFlag)
-				cleanup();
+			int clntSock = acceptClient(webSock);
 			if (clntSock < 0)
 				continue;
 
@@ -276,17 +280,13 @@ int main(int argc, char *argv[])
 				cleanup();
 			pthread_detach(ntid);
 			webThreads.insert(ntid);
+			cout << "\n~~~~~\n" << webThreads.size() << "\n~~~~~\n" << endl;
 		}
 		//control socket
 		else if (fds[1].revents & POLLIN) {
 			if (controlThreads.size() > MAX_CTRL_CLNT)
 				continue;
-			struct sockaddr_in clientaddr;
-			socklen_t clientaddrlen = sizeof(clientaddr);
-			int clntSock = accept(controlSock, (struct sockaddr*)&clientaddr, &clientaddrlen);
-			socks.insert(clntSock);
-			if (shutdownFlag)
-				cleanup();
+			int clntSock = acceptClient(controlSock);
 			if (clntSock < 0)
 				continue;
 
