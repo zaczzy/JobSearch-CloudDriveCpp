@@ -8,7 +8,6 @@
 #include <vector>
 
 #define LOG_FILE            "key_value.log"
-#define LOG_SEQ_NO_FILE     "log_seq_no.txt"
 
 typedef struct 
 {

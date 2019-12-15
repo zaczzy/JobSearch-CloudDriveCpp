@@ -14,7 +14,6 @@
 #include "logging.h"
 
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
-#define CHECKPOINT_VERSION_FILE     "checkpoint_version.txt"
 #define CHECKPOINT_FILE             "checkpoint.txt"
 
 typedef enum 

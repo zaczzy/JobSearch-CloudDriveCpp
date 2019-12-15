@@ -436,6 +436,35 @@ int main(int argc, char *argv[])
     if (res == FAILURE)
         exit(EXIT_FAILURE);
 
+    /** Create and write 0 to log sequence no file */
+    FILE* fd = fopen(LOG_SEQ_NO_FILE, "w");
+
+    if (fd == NULL)
+    {
+        if (verbose)
+            printf("Couldn't create log seq file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    unsigned long long seq_no = 0;
+    fprintf(fd, "%llu", seq_no);
+    fclose(fd);
+
+
+    /** Create and write 0 to checkpoint version no file */
+    FILE* c_fd = fopen(CHECKPOINT_VERSION_FILE,  "w");
+
+    if (c_fd == NULL)
+    {
+        if (verbose)
+            printf("Couldn't create log seq file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    unsigned long long version_no = 0;
+    fprintf(fd, "%llu", version_no);
+    fclose(c_fd);
+
     pthread_t thread;
     int iret1 = pthread_create(&thread, NULL, run_server_for_admin, NULL);
 

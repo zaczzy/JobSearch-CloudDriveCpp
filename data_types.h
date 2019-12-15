@@ -27,6 +27,9 @@
 #define CHUNK_SIZE 8192      // WIll change this later
 #define MAX_EMAILS 10           // WIll change this later
 
+#define LOG_SEQ_NO_FILE     "log_seq_no.txt"
+#define CHECKPOINT_VERSION_FILE     "checkpoint_version.txt"
+
 #ifdef SERIALIZE
 class SerializeCStringHelper {
 public:
