@@ -31,6 +31,7 @@ private:
 	void handleGET(bool HEAD);
 	void handlePOST(char *body);
 	void splitHeaderBody(string input, vector<string> *header_list, string *body);
+	string generateLogin(string msg = "");
 	string generateInbox(get_mail_response *resp);
 
 	int sock;

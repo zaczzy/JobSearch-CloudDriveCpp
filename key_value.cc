@@ -268,6 +268,7 @@ void add_root_folder(map_tablet::iterator itr)
 
 int add_user(char* username, char* password)
 {
+    printf("username: %s password: %s\n", username, password);
     if (tablet.size() == MAX_TABLET_USERS)
         return ERR_EXCEEDED_MAX_TABLET_USER_LIMIT;
 
@@ -1267,7 +1268,7 @@ bool process_command(char* command, int len, int fd)
     if (strncmp(command, "add", strlen("add")) == 0 || strncmp(command, "ADD", strlen("ADD")) == 0)
     {
         /** Remove the newline character */
-        command[strlen(command) - 1] = '\0';
+        //command[strlen(command) - 1] = '\0';
         /** LOg this entry into the log file */
         add_log_entry(ADD_USER, command);
 

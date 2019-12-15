@@ -57,6 +57,7 @@ string readClient(int clntSock, bool *b_break) {
 	if (shutdownFlag)
 		die("shutdown");
 
+	cout << "try read client" << endl;
 	int i = read(clntSock, c_requestLine, sizeof(c_requestLine));
 	//read() error
 	if (i < -1)

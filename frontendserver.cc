@@ -151,8 +151,9 @@ void *webThreadFunc(void *args){
 
 	SingleConnServerHTML S(clntSock, webroot, CR, BR);
 	S.backbone();
-	close(clntSock);
+//	close(clntSock); //socket closed at bottom of backbone()
 	socks.erase(clntSock);
+	webThreads.erase(pthread_self());
 }
 
 /*
@@ -167,6 +168,7 @@ void *controlThreadFunc(void *args){
 	S.backbone();
 	close(clntSock);
 	socks.erase(clntSock);
+	controlThreads.erase(pthread_self());
 }
 
 /*

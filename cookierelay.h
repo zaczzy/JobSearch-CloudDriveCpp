@@ -19,6 +19,7 @@ public:
 	~CookieRelay();
 	//change genCookie and fetchBrowser to use sockets!!
 	int genCookie(string browser);
+	void delCookie(int cookie);
 	string fetchBrowser(int cookie);
 
 	pthread_mutex_t mutex_sock;

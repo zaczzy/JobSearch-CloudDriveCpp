@@ -161,6 +161,16 @@ void *cookieThreadFunc(void *args) {
 			if (VERBOSE)
 				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
 		}
+		else if (command.compare("DEL") == 0) {
+			//payload == cookie
+			int cookie = stoi(payload);
+			cookie2Browser.erase(cookie);
+			string msg = "ok";
+			char *m = (char *)msg.c_str();
+			int i = write(clntSock, m, strlen(m));
+			if (VERBOSE)
+				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
+		}
 		else {
 			die("bad command");
 		}

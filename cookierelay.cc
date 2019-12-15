@@ -76,6 +76,14 @@ int CookieRelay::genCookie(string browser) {
 }
 
 /*
+ * Delete cookie (logout)
+ */
+void CookieRelay::delCookie(int cookie) {
+	string command = "DEL " + to_string(cookie);
+	sendCommand(command);
+}
+
+/*
  * Fetch a browser using an existing cookie
  */
 string CookieRelay::fetchBrowser(int cookie) {

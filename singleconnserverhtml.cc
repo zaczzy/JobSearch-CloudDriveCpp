@@ -160,7 +160,7 @@ string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
 				"<button type='submit'>View</button></form>";
 		string deleteButton = "<form action='/delete_mail' method='post' style='display:inline;'>"
 				"<button type='submit' name='emailid' value='" + email_id + "'>Delete</button></form>";
-		HTML += "<div> From: <" + from + ">" +
+		HTML += "<div> From: [" + from + "] " +
 				"Subject: " + subject + " at " + date +
 				viewMailButton + deleteButton + "</div>";
 	}
@@ -168,6 +168,14 @@ string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
 		HTML += "*crickets chirping*";
 	HTML += "</body></html>";
 	return HTML;
+}
+
+string SingleConnServerHTML::generateLogin(string msg) {
+	string HTML = readHTMLFromFile("templates/login.html");
+	int i_marker = HTML.find("{{ msg }}");
+	string pre = HTML.substr(0, i_marker);
+	string post = HTML.substr(i_marker+9);
+	return pre + msg + post;
 }
 
 /*
@@ -184,7 +192,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 	if (cookieValue == -1) {
 		cerr << "UH OH " << requestURI << endl;
 		redirectTo = requestURI;
-		string HTML = readHTMLFromFile("templates/login.html");
+		string HTML = generateLogin();
 		sendHeaders(HTML.length()); //possibly -4 length
 		sendMsg(HTML);
 		return;
@@ -258,7 +266,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 
 			//redirect to login page
 			//TODO: add message stating account add successful
-			string HTML = readHTMLFromFile("templates/login.html");
+			string HTML = generateLogin("<i>add user success</i>");
 			sendHeaders(HTML.length());
 			sendMsg(HTML);
 			return;
@@ -276,7 +284,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 //		if (user.compare("michal") != 0 || pass.compare("p") != 0) {
 			//redirect to login page
 			//TODO: add message stating invalid credentials
-			string HTML = readHTMLFromFile("templates/login.html");
+			string HTML = generateLogin("<i>invalid credentials</i>");
 			sendHeaders(HTML.length());
 			sendMsg(HTML);
 			return;
@@ -291,7 +299,16 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		redirectTo = "";
 		handleGET();
 	}
-	if (requestURI.compare("/send_mail") == 0) {
+	else if (requestURI.compare("/handle_logout") == 0) {
+		pthread_mutex_lock(&(CR->mutex_sock));
+		CR->delCookie(cookieValue);
+		pthread_mutex_unlock(&(CR->mutex_sock));
+		username = "";
+		cookieValue = -1;
+		requestURI = "/index.html";
+		handleGET();
+	}
+	else if (requestURI.compare("/send_mail") == 0) {
 		//SEND_MAIL
 		//parse data e.g. msg=NoobDown&rcpt=Me
 		const char *delim = "&\n";
@@ -307,7 +324,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		requestURI = "/mail/inbox";
 		handleGET();
 	}
-	if (requestURI.compare("/delete_mail") == 0) {
+	else if (requestURI.compare("/delete_mail") == 0) {
 		//DELETE_MAIL
 		//parse data e.g. emailid=777
 		string email_id = body + strlen("emailid=");
@@ -372,7 +389,7 @@ void SingleConnServerHTML::backbone() {
 //
 //
 //		//from strtok single character delimiter, modify in-place, char * hell to string paradise
-		bool b_break;
+		bool b_break = false;
 		string requestLine = readClient(sock, &b_break);
 		if (b_break)
 			break;
@@ -471,5 +488,6 @@ void SingleConnServerHTML::backbone() {
 		else
 			sendStatus(501);
 	}
+	cout << "===closing SingleConnServerHTML" << endl;
 	close(sock);
 }
