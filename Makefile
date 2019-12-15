@@ -1,12 +1,12 @@
 GCC=g++
 CFLAGS=-Wall -g -lpthread -lboost_serialization  
-OBJ = storage_server.o socket.o  key_value.o thread.o logging.o
+OBJ = socket.o  key_value.o thread.o logging.o
 
-storage_server: $(OBJ)
+storage_server: storage_server.cc $(OBJ)
 	$(GCC) $^ $(CFLAGS) -o $@ 
 
 %.o: %.c 
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) $(CFLAGS) -c -o $@ $< 
 
 pack:
 	rm -f submit-hw2.zip

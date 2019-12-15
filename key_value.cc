@@ -14,6 +14,8 @@
 #include "logging.h"
 
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
+#define CHECKPOINT_VERSION_FILE     "checkpoint_version.txt"
+#define CHECKPOINT_FILE             "checkpoint.txt"
 
 typedef enum 
 {
@@ -1655,17 +1657,6 @@ void serialize_tablet_to_file(char* filepath)
 
 }
 
-//void serialize_tablet_row_to_file(char* filepath)
-//{
-//    map_tablet::iterator it;
-//    boost::archive::text_oarchive oa(ofs);
-//    for (it = tablet.begin(); it != tablet.end(); it++)
-//    {
-//        oa << it;
-//    }
-//    ofs.close();
-//}
-
 map_tablet deserialize_tablet_from_file(char* filepath)
 {
    map_tablet new_tablet;
@@ -1677,65 +1668,63 @@ map_tablet deserialize_tablet_from_file(char* filepath)
    return new_tablet;
 }
 
-//map_tablet deserialize_tablet_row_from_file(char* filepath)
-//{
-//   map_tablet new_tablet;
-//   std::ifstream ifs(filepath);
-//   boost::archive::text_iarchive ia(ifs);
-//   ia >> new_tablet;
-//   ifs.close();
-//
-//   return new_tablet;
-//}
-
-#if 0
-int main()
+void take_checkpoint()
 {
-    /** Populate map with data */
-    tablet_row row;
-    row.email_id = std::string("ritika");
-    row.password = std::string("pass");
-    row.num_emails = 0;
-    row.num_files = 1;
+    if (verbose)
+        printf("====Taking checkpoint=====\n");
+
+    serialize_tablet_to_file(CHECKPOINT_FILE);
     
-    tablet_column col;
-    col.type = MAIL;
+    if (verbose)
+        printf("====Taken checkpoint successfully====");
 
-    file_content f_content;
-    f_content.file_len = 6;
-    f_content.file_data = (char*)malloc(6);
-    strcpy(f_content.file_data, "abcde");
-    
-    col.content = &f_content;
-    row.columns.insert(std::make_pair(std::string("col1"), col));
+    /** Read and update checkpoint version no */
+    FILE* file = fopen(CHECKPOINT_VERSION_FILE, "r+");
 
-    tablet.insert(std::make_pair("row1", row));
-
-    serialize_tablet_to_file("map.serial");
-    
-    map_tablet new_tablet;
-    new_tablet = deserialize_tablet_from_file("map.serial");
-
-    map_tablet::iterator it;
-    for(it = new_tablet.begin(); it != new_tablet.end(); it++)
+    if (file == NULL)
     {
-        printf("row key : %s\n", it->first.c_str());
-        printf("email id : %s\n", it->second.email_id.c_str());
-        printf("password: %s\n", it->second.password.c_str());
-        printf("num emails: %lu\n", it->second.num_emails);
-        printf("num files: %lu\n", it->second.num_files);
+        if (verbose)
+            printf("unable to open version no file. Error : %s\n", strerror(errno));
+        
+        exit(EXIT_FAILURE);
+    }
 
-        map_tablet_row::iterator it_col;
+    char* ver_no_str;
+    size_t len = 0;
+    int ret = getline(&ver_no_str, &len, file);
 
-        for (it_col = it->second.columns.begin(); it_col != it->second.columns.end(); it_col++)
-        {
-            printf("col key: %s\n", it_col->first.c_str());
-            printf("type val : %u\n", it_col->second.type);
-            file_content* content = (file_content*)it_col->second.content;;
-            printf("col content: file len : %lu\n", content->file_len);
-            printf("col content: file data : %s\n", content->file_data);
-        }
+    printf("ret: %d, str: %s\n", ret, ver_no_str);
+    if (ret != -1)
+    {
+        unsigned long long version_no = atoi(ver_no_str);
+
+        if (verbose)
+            printf("current seq no: %llu\n", version_no);
+        version_no++;
+
+        char new_ver_no_str[32];
+        sprintf(new_ver_no_str, "%llu", version_no);
+
+        /** Write the updated sequence no to the file */
+        fseek(file, 0, SEEK_SET);
+        fwrite(new_ver_no_str, 1, strlen(new_ver_no_str), file);
+        fclose(file);
+    
+        if (verbose)
+            printf("====Updated checkpint version no successfully====");
+
+    }
+    else
+    {
+        if (verbose)
+            printf("Couldn't read version number. Error : %s\n", strerror(errno));
     }
 }
-#endif
+
+void recover()
+{
+    
+}
+
+
 #endif

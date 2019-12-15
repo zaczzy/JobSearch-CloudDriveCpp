@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <strings.h>
+#include <fcntl.h>
 #include <vector>
 #include <errno.h>
 #include <unordered_map>
@@ -35,17 +36,19 @@ uint8_t server_id;
 
 void* run_server_for_admin(void* args);
 
-void run_storage_server(char* ip_address, int port_no)
+void* run_storage_server(void* params)
 {
     int server_fd;
     int client_count = 0;
     char success_msg[] = "+OK Server ready (Author: Team 24)\r\n";
     int msg_len = strlen(success_msg);
 
-    
     printf("running storage server\n");
     /** Prepare the socket - create, bind, and listen to port */
-    server_fd = prepare_socket(port_no);
+    server_fd = prepare_socket(server_port_no);
+
+    int flags = fcntl(server_fd, F_GETFL, 0);
+    fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 
     if (server_fd == -1)
         exit(EXIT_FAILURE);
@@ -54,7 +57,7 @@ void run_storage_server(char* ip_address, int port_no)
     while(!terminate)
     {
         int *client_fd = new int;
-        *client_fd = -1;
+        
         struct sockaddr_in client_addr;
         socklen_t client_addrlen = sizeof(client_addr);
 
@@ -65,11 +68,7 @@ void run_storage_server(char* ip_address, int port_no)
         if (terminate)
         {
             close(*client_fd);
-            exit(EXIT_SUCCESS);
-        }
-        else
-        {
-            fds[client_count++] = *client_fd;
+            goto term;
         }
 
         if (*client_fd < 0 && errno != EAGAIN && errno != EWOULDBLOCK) 
@@ -78,10 +77,18 @@ void run_storage_server(char* ip_address, int port_no)
                 fprintf(stderr, "accept failed\n");
             exit(EXIT_FAILURE);
         }
+        else if (*client_fd == -1)
+        {
+            continue;
+        }
+        
+        fds[client_count++] = *client_fd;
         
         if (verbose)
             printf("accepted client connection\n");
 
+        // TODO remove
+        printf("client fd: %d\n", *client_fd);
         /** Send the connection OK msg */
         send_msg_to_socket(success_msg, msg_len, *client_fd);
 
@@ -89,7 +96,13 @@ void run_storage_server(char* ip_address, int port_no)
         create_thread(client_fd);
     }
 
-    client_count = 0;
+term:
+    close(server_fd);
+    if (verbose)
+        printf("Closing storage server\n");
+    pthread_exit(NULL);
+
+    return NULL;
 }
 
 bool read_server_config_master(char* config_file, int group_no, int server_no, char* ip_address, int* port_no)
@@ -352,8 +365,16 @@ void* read_admin_commands(int client_fd)
             /** Replay logs from log file */
             replay_log();
 
-            /** Run the main storage server again */
-            //run_storage_server(ip_address, server_port_no);
+            /** Run the main listener thread again */
+            pthread_t thread;
+            int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
+
+            if (iret1 != 0)
+            {
+                if  (verbose)
+                    fprintf(stderr, "Error creating thread\n");
+                exit(EXIT_FAILURE);
+            }
         }
     }
 }
@@ -394,6 +415,8 @@ void* run_server_for_admin(void* args)
 
         read_admin_commands(client_fd); 
     }
+
+    return NULL;
 }
 
 int main(int argc, char *argv[])
@@ -423,7 +446,17 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    run_storage_server(ip_address, server_port_no);
+    pthread_t thread2;
+    int iret2 = pthread_create(&thread2, NULL, run_storage_server, NULL);
 
+    if (iret2 != 0)
+    {
+        if  (verbose)
+            fprintf(stderr, "Error creating thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pthread_join(thread, NULL);
+    pthread_join(thread2, NULL);
     exit(EXIT_SUCCESS);
 }

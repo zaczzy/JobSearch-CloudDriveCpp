@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "socket.h"
 #include "key_value.h"
@@ -31,39 +32,43 @@ void* read_commands(void* args)
         int ret;
         ret = read(*client_fd, buffer, sizeof(buffer));
 
-        if (ret == -1)
+        if (ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
         {
             printf("error code : %s\n", strerror(errno));
-        }
-        if (ret == 0)
-        {
-            continue;
-        }
-        printf("read %d bytes\n", ret);
-        if (terminate)
-            goto term;
-
-        if (ret < 0)
-        {
-            // ERror
             exit(EXIT_FAILURE);
         }
-
-        process_command(buffer, ret, *client_fd);
+        else if (ret == 0)
+        {
+            goto term;
+        }
+        else if (ret > 0)
+        {
+            printf("read %d bytes\n", ret);
+            if (terminate)
+                goto term;
+        
+            process_command(buffer, ret, *client_fd);
+        }
     }
 
 term:
 
     /** Close the socket connection */
     close(*client_fd);
+    delete(client_fd);
 
+    if (verbose)
+        printf("exiting thread\n");
     pthread_exit(NULL);
 }
 
 void create_thread(int* fd)
 {
+    int flags = fcntl(*fd, F_GETFL, 0);
+    fcntl(*fd, F_SETFL, flags | O_NONBLOCK);
+
     pthread_t thread;
-    int iret1 = pthread_create(&thread, NULL, read_commands, (void*) fd);
+    int iret1 = pthread_create(&thread, NULL, read_commands, (void*) (fd));
 
     if (iret1 != 0)
     {

@@ -17,5 +17,7 @@ bool store_file(put_file_request* request);
 bool change_password(char* username, char* old_password, char* new_password);
 int create_folder(create_folder_request* request);
 int delete_folder(delete_folder_content_request* request);
+void take_checkpoint();
+void recover();
 
 #endif
