@@ -52,8 +52,8 @@ void* run_storage_server(void* params)
     /** Prepare the socket - create, bind, and listen to port */
     server_fd = prepare_socket(server_port_no);
 
-    int flags = fcntl(server_fd, F_GETFL, 0);
-    fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
+    //int flags = fcntl(server_fd, F_GETFL, 0);
+    //fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 
     if (server_fd == -1)
         exit(EXIT_FAILURE);
@@ -369,15 +369,15 @@ void* read_admin_commands(int client_fd)
             replay_log();
 
             /** Run the main listener thread again */
-            pthread_t thread;
-            int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
+            //pthread_t thread;
+            //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
 
-            if (iret1 != 0)
-            {
-                if  (verbose)
-                    fprintf(stderr, "Error creating thread\n");
-                exit(EXIT_FAILURE);
-            }
+            //if (iret1 != 0)
+            //{
+            //    if  (verbose)
+            //        fprintf(stderr, "Error creating thread\n");
+            //    exit(EXIT_FAILURE);
+            //}
         }
     }
 }
@@ -423,14 +423,14 @@ void* run_client_for_master(void* args)
     servaddr.sin_port = htons(MASTER_PORT); 
   
     // connect the client socket to server socket 
-    if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0) { 
-        printf("connection with the master failed...\n"); 
-        exit(EXIT_FAILURE); 
-    } 
-    else
-    {
-        printf("connected to the master server..\n"); 
-    }
+    //if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0) { 
+    //    printf("connection with the master failed...\n"); 
+    //    exit(EXIT_FAILURE); 
+    //} 
+    //else
+    //{
+    //    printf("connected to the master server..\n"); 
+    //}
 
 work:
     while(!terminate)

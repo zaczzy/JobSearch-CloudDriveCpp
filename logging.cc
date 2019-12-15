@@ -16,7 +16,7 @@ typedef struct
 }user_login;
 
 extern bool verbose;
-std::ofstream ofs(LOG_FILE,std::fstream::app);
+std::ofstream ofs(LOG_FILE,std::fstream::trunc);
 
 unsigned long long get_log_sequence_no()
 {
