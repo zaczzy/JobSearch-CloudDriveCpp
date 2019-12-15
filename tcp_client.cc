@@ -103,10 +103,10 @@ void func(int sockfd)
     write_emails(sockfd);
 
     /** Get the email headers from server */
-    printf("reading email headers from server\n");
-    get_email_header_list(sockfd);
+   printf("reading email headers from server\n");
+   get_email_header_list(sockfd);
 
-    /** Read email body */
+   /** Read email body */
     get_mail_body_request body_req;
     strncpy(body_req.prefix, "mailbody", strlen("mailbody"));
     body_req.prefix[strlen(body_req.prefix)] = '\0';
@@ -129,7 +129,6 @@ void func(int sockfd)
 
     printf("mail body: %s\n", body_response->mail_body);
 
-#if 1
     printf("\n\nDeleting email\n\n");
     /** Delete an email */
     delete_mail_request del_req;
@@ -143,13 +142,11 @@ void func(int sockfd)
     printf("written %d bytes to server\n", bytes);
     bytes = read(sockfd, buff, sizeof(buff)); 
     printf("read %d bytes from Server : message: %s \n", bytes, buff);
-    
+   
     /** Get the email headers from server */
     printf("reading email headers from server\n");
     get_email_header_list(sockfd);
 
-#endif
-    // TODO:
 
 } 
   
@@ -184,6 +181,7 @@ int main()
     // function for chat 
     func(sockfd); 
   
+    while(true);
     // close the socket 
     close(sockfd); 
 } 
