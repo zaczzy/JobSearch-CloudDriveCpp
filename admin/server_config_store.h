@@ -4,10 +4,14 @@
 #include <vector>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <string>
 using namespace std;
+enum Status {Dead=0, Alive};
+
 struct server_netconfig {
   int key;
   struct sockaddr_in serv_addr;
+  Status status;
 };
 extern map<int, vector<server_netconfig>> groups;
 extern vector<server_netconfig> frontends;

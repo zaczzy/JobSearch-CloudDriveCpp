@@ -60,7 +60,7 @@ static bool str_to_uint16(const char *str, uint16_t *res) {
 static void prepare_server_netconfig(server_netconfig *tmp, int *id_count,
                                      const string &member) {
   tmp->key = *id_count;
-  *id_count++;
+  (*id_count)++;
   tmp->serv_addr.sin_family = AF_INET;  // IPv4
   string ip_str = member.substr(0, member.find(":"));
   trim(ip_str);
@@ -72,6 +72,7 @@ static void prepare_server_netconfig(server_netconfig *tmp, int *id_count,
     exit(-1);
   }
   tmp->serv_addr.sin_port = htons(tmp_port);
+  tmp->status = Alive;
 }
 
 void read_config_file(char *config_name) {
@@ -90,7 +91,6 @@ void read_config_file(char *config_name) {
       vector<string> members = split(line, ',');
       // frontend config
       if (frontend_config_start) {
-        id_count = 0;
         for (auto &member : members) {
           server_netconfig tmp;
           prepare_server_netconfig(&tmp, &id_count, member);
