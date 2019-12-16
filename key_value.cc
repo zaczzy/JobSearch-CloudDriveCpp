@@ -15,8 +15,8 @@
 
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
 
-extern bool result_ready;
-extern bool ask_master;
+int master_sockfd; 
+extern int server_no, group_no;
 
 typedef enum 
 {
@@ -325,7 +325,7 @@ int delete_user(char* username, char* password)
     return SUCCESS;
 }
 
-bool auth_user(char* username, char* password)
+int auth_user(char* username, char* password)
 {
     map_tablet::iterator itr;
     
@@ -1774,14 +1774,26 @@ void respond_with_seq_no(recovery_req req)
     }
 }
 
+void ask_primary(int group_no)
+{
+    char request[64];
+    
+    sprintf(request, "%dprimary", group_no);
+
+    int bytes = write(master_sockfd, request, strlen(request));
+
+    char buff[64];
+    bytes = read(master_sockfd, buff, sizeof(buff));
+
+    // TODO: Update primary IP and port
+    //primary_ip 
+}
+
 void recover()
 {
     /** Ask primary from master */
-    result_ready = false;
-    ask_master = true;
-
-    while(!result_ready)
-        ;
+    // TODO: get primary result ?
+    ask_primary(group_no);
 
     /** Send the log sequence no and checkpoint version no to primary */
     recovery_req s_no;

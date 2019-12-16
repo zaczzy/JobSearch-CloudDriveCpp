@@ -28,10 +28,9 @@ bool verbose = false;
 volatile bool terminate = false;
 char ip_address[IP_ADDRESS_LEN];
 int server_port_no;
-bool result_ready = false;
-bool ask_master = false;
 bool restart = true;
 int server_no, group_no;
+extern int master_sockfd; 
 
 volatile int fds[100];
 std::unordered_map<int, char*> server_addresses; 
@@ -324,6 +323,39 @@ void parse_args(int argc, char *argv[], char* config_file, int* group_no, int* s
     *server_no = atoi(argv[optind]);
 }
 
+void create_socket_for_master()
+{
+    if (verbose)
+        printf("running client for communication with master\n");
+    struct sockaddr_in servaddr; 
+  
+    // socket create and varification 
+    master_sockfd = socket(AF_INET, SOCK_STREAM, 0); 
+    if (master_sockfd == -1) { 
+        printf("socket creation failed for connection with master\n"); 
+        exit(EXIT_FAILURE); 
+    } 
+    else
+    {
+        printf("Socket successfully created..\n"); 
+    }
+    
+    bzero(&servaddr, sizeof(servaddr)); 
+  
+    // assign IP, PORT 
+    servaddr.sin_family = AF_INET; 
+    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
+    servaddr.sin_port = htons(MASTER_PORT); 
+  
+    // connect the client socket to server socket 
+    if (connect(master_sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0) { 
+        printf("connection with the master failed...\n"); 
+    } 
+    else
+    {
+        printf("connected to the master server..\n"); 
+    }
+}
 void* read_admin_commands(int client_fd)
 {
     char buffer[2048];
@@ -359,6 +391,9 @@ void* read_admin_commands(int client_fd)
             /** Clear the map */
             clear_tablet();
 
+            /** Close the socket to master */
+            close(master_sockfd);
+
             /** TODO: Free locks if acquiree any */
         }
         else if (strncmp(buffer, "restart", strlen("restart")) == 0)
@@ -367,6 +402,9 @@ void* read_admin_commands(int client_fd)
 
             /** Replay logs from log file */
             replay_log();
+
+            /** Open the connection to master */
+            create_socket_for_master();
 
             /** Run the main listener thread again */
             //pthread_t thread;
@@ -382,70 +420,6 @@ void* read_admin_commands(int client_fd)
     }
 }
 
-void ask_primary(int sockfd, int group_no)
-{
-    char request[64];
-    
-    sprintf(request, "%dprimary", group_no);
-
-    int bytes = write(sockfd, request, strlen(request));
-
-    char buff[64];
-    bytes = read(sockfd, buff, sizeof(buff));
-
-    // TODO: Update primary IP and port
-    //primary_ip 
-}
-
-void* run_client_for_master(void* args)
-{
-    if (verbose)
-        printf("running client for communication with master\n");
-    int sockfd; 
-    struct sockaddr_in servaddr; 
-  
-    // socket create and varification 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-    if (sockfd == -1) { 
-        printf("socket creation failed for connection with master\n"); 
-        exit(EXIT_FAILURE); 
-    } 
-    else
-    {
-        printf("Socket successfully created..\n"); 
-    }
-    
-    bzero(&servaddr, sizeof(servaddr)); 
-  
-    // assign IP, PORT 
-    servaddr.sin_family = AF_INET; 
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
-    servaddr.sin_port = htons(MASTER_PORT); 
-  
-    // connect the client socket to server socket 
-    //if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0) { 
-    //    printf("connection with the master failed...\n"); 
-    //    exit(EXIT_FAILURE); 
-    //} 
-    //else
-    //{
-    //    printf("connected to the master server..\n"); 
-    //}
-
-work:
-    while(!terminate)
-    {
-        if (ask_master)
-        {
-            ask_primary(sockfd, group_no);
-            result_ready = true;
-            ask_master = false;
-        }
-    }
-
-    while (!restart);
-    goto work;
-}
 
 void* run_server_for_admin(void* args)
 {
@@ -551,18 +525,10 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    pthread_t thread3;
-    int iret3 = pthread_create(&thread3, NULL, run_client_for_master, NULL);
-
-    if (iret3 != 0)
-    {
-        if  (verbose)
-            fprintf(stderr, "Error creating thread\n");
-        exit(EXIT_FAILURE);
-    }
+    /** Create socket for communication with master */
+    create_socket_for_master();
 
     pthread_join(thread, NULL);
     pthread_join(thread2, NULL);
-    pthread_join(thread3, NULL);
     exit(EXIT_SUCCESS);
 }
