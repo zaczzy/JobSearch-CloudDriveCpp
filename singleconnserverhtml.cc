@@ -209,7 +209,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		//SHOW_MAIL
 		char c_HTML[BUFF_SIZE]; //unused
 		get_mail_response resp;
-		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, c_HTML, BR->getSock(), &resp);
+		webserver_core(0, (char*)username.c_str(), -1, EMPTYSTR, EMPTYSTR, EMPTYSTR, c_HTML, BR->getSock(), &resp);
 		HTML = generateInbox(&resp);
 //		HTML = readHTMLFromFile("templates/mail.html");
 	}
@@ -221,7 +221,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 		//URL format: /mail/m[email_id]
 		string email_id = requestURI.substr(strlen("/mail/m"));
 		char c_HTML[BUFF_SIZE];
-		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, c_HTML, BR->getSock(), NULL);
+		webserver_core(1, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, EMPTYSTR, c_HTML, BR->getSock(), NULL);
 		HTML = c_HTML;
 	}
 	else if (requestURI.compare("/storage.html") == 0) {
@@ -320,8 +320,10 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		string subject = c_subj + strlen("subject=");
 		string message = c_msg + strlen("message=");
 
+		cout << "{" << to << "\n" << subject << "\n" << message << "}" << endl;
+
 		char b[BUFF_SIZE]; //unused
-		webserver_core(2, (char*)username.c_str(), -1, (char *)message.c_str(), (char *)to.c_str(), b, BR->getSock(), NULL);
+		webserver_core(2, (char*)username.c_str(), -1, (char *)message.c_str(), (char *)to.c_str(), (char *)subject.c_str(), b, BR->getSock(), NULL);
 		requestURI = "/mail/inbox";
 		handleGET();
 	}
@@ -330,7 +332,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		//parse data e.g. emailid=777
 		string email_id = body + strlen("emailid=");
 		char b[BUFF_SIZE]; //unused //handle differently on failure?
-		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, b, BR->getSock(), NULL);
+		webserver_core(3, (char*)username.c_str(), stoi(email_id), EMPTYSTR, EMPTYSTR, EMPTYSTR, b, BR->getSock(), NULL);
 		requestURI = "/mail/inbox";
 		handleGET();
 	}

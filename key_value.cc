@@ -391,7 +391,9 @@ int store_email(put_mail_request* request)
     *(content->header) = request->header;
     content->header->email_id = email_id;
     content->email_id = email_id;
+    content->body_len = request->email_len;
 
+    printf("email body : %s \n subject: %s\n email len : %d\n", request->email_body, request->header.subject, request->email_len);
     col.content = content; 
     /** Add the entry to the map */
     itr->second.columns.insert(std::make_pair(std::string(email_id_str), col));
@@ -683,9 +685,13 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
         strncpy(response->username, request->username, strlen(request->username));
         response->email_id = request->email_id;
 
+   
         // TODO: Check for index value greater than num_emails before using it
-        strncpy(response->mail_body, content->email_body, strlen(content->email_body));
-        response->mail_body_len = strlen(response->mail_body);
+        strncpy(response->mail_body, content->email_body, content->body_len);
+        response->mail_body_len = content->body_len;
+
+         printf("email body : %s \n email len : %d\n", response->mail_body, response->mail_body_len);
+   
     }
     else /** column doesn't exist */
     {
