@@ -1,10 +1,13 @@
-GCC=g++
-CFLAGS=-Wall -g -lpthread -lboost_serialization  
-OBJ = socket.o  key_value.o thread.o logging.o
+CC_FLAGS = -Wall -lpthread -Wsign-conversion -lboost_serialization
+# S_FLAGS = -fsanitize=address -fno-omit-frame-pointer -pedantic
+VALGRIND_DEBUG_FLAG = -g
+GDB_DEBUG_FLAG = -ggdb
+CC = g++ -std=c++11  $(GDB_DEBUG_FLAG) $(VALGRIND_DEBUG_FLAG)
+OBJ = socket.cc  key_value.cc thread.cc logging.cc
 
 storage_server: storage_server.cc $(OBJ)
-	$(GCC) $^ $(CFLAGS) -o $@ 
+	$(CC) $^ -o $@ $(CC_FLAGS)
 
-%.o: %.c 
-	$(CC) $(CFLAGS) -c -o $@ $< 
+#%.o: %.c 
+#	$(CC) -c -o $@ $< 
 

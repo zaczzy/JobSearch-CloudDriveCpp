@@ -107,7 +107,7 @@ term:
     return NULL;
 }
 
-bool read_server_config_master(char* config_file, int group_no, int server_no, char* ip_address, int* port_no)
+bool read_server_config_master(char* config_file, int group_no, int server_no, char* ip_addr, int* port_no)
 {
     /** Open config file */
     FILE* file = fopen(config_file, "r");
@@ -124,7 +124,7 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
     ssize_t ret;
     char *line, *token;
     size_t len = 0;
-    memset(ip_address, 0, IP_ADDRESS_LEN);
+    memset(ip_addr, 0, IP_ADDRESS_LEN);
     *port_no = 0;
 
     while ((ret = getline(&line, &len, file)) != -1)
@@ -158,10 +158,10 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
 
                     if (ip_len > 0 && ip_len <= 32)
                     {
-                        strncpy(ip_address, token, ip_len);
+                        strncpy(ip_addr, token, ip_len);
                         *port_no = atoi(token + ip_len + 1);
 
-                        printf("this server ip address: %s port no: %d\n", ip_address, *port_no);
+                        printf("this server ip address: %s port no: %d\n", ip_addr, *port_no);
                     }
                 }
                 else

@@ -60,7 +60,7 @@ int SingleConnServerHTML::sendMsg(string msg) {
   char *m = (char *)msg.c_str();
   int i = write(sock, m, strlen(m));
   if (shutdownFlag || i < 0) die("Shutdown flag or write fail");
-  if (VERBOSE) fprintf(stderr, "[%d][WEB] S: %s", sock, m);
+  if (VERBOSE) fprintf(stderr, "[%d][WEB] S: {%s}\n", sock, m);
   return 1;
 }
 
@@ -249,7 +249,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     // get file names from backend
     vector<string> filenames;
     const string root = "/r00t";
-    request_file_names(filenames, string(""), username, root, BR);
+    request_file_names(filenames, string(""), username, root.substr(1), BR);
     string to_replace;
     generate_display_list(to_replace, root, filenames);
     replace_all_occurrences(HTML, string("{{path}}"), root);
@@ -314,7 +314,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
                                       string &boundary, int content_length,
                                       int sock) {
   if (is_multipart_form) {
-    string URI = requestURI.substr(7);  // "/r00t/dir1"
+    string URI = requestURI.substr(7);  // "/r00t/dir1" or "/r00t"
     boundary.insert(0, "--");
     // sanity check
     if (boundary.compare(string(body)) != 0) {
@@ -492,7 +492,6 @@ void SingleConnServerHTML::backbone() {
     fprintf(stderr, "[%d][WEB] S: +OK server ready [localhost]\r\n", sock);
 
   while (true) {
-    cout << "BBBBBBBB" << endl;
     // Can't use fgets because POST body is binary data
     // Can't use fread because it blocks (size of POST body variable)
     // Can't use fgets for GET and read for POST because buffered read
@@ -592,8 +591,10 @@ void SingleConnServerHTML::backbone() {
     bool is_multipart_form = false;
     string boundary;
     int content_length = 0;
+    cout << "THIS PART should be REACHED!!!" << endl;
     if (req.compare("POST") == 0 && requestURI.find("/upload") == 0) {
       is_multipart_form = true;
+      cout << "THIS PART IS REACHED" << endl;
       for (string header : headers) {
         if (header.find("Content-Type: multipart/form-data") == 0) {
           boundary = header.substr(header.rfind("=") + 1);

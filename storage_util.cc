@@ -47,7 +47,9 @@ void request_file_names(std::vector<std::string>& filenames,
   std::string response_line =
       BR->sendFolderRequest(&req, MAX_FOLDER_INFO_LENGTH);
   if (!response_line.compare("")) return;
-  split(filenames, response_line, '~');
+  if(!response_line[0] == '~'){
+    split(filenames, response_line, '~');
+  }
 }
 
 void generate_display_list(std::string& to_replace,
@@ -68,6 +70,9 @@ void generate_display_list(std::string& to_replace,
                     real_fname + "\">Download file " + real_fname +
                     "</a></div>";
     }
+  }
+  if (filenames.size() ==0) {
+    to_replace = "<div><b>The folder is currently empty</b>y</div>";
   }
 }
 void split_filename(const std::string& str, std::string& path,
