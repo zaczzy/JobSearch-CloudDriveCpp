@@ -10,7 +10,7 @@ all: $(TARGETS)
 %.o: %.cc %.h
 	$(CC) $(CFLAGS) -ggdb -o $@ -c $<
 
-cloud: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o 
+cloud: servercommon.o frontendserver.o singleconnserverhtml.o singleconnservercontrol.o cookierelay.o backendrelay.o mailservice.o storage_util.o
 	$(CC) $(CFLAGS) $^ -o $@
 
 pack:

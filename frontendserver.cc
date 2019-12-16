@@ -264,7 +264,6 @@ int main(int argc, char *argv[])
 			die("Poll error", false);
 		//web socket
 		else if (fds[0].revents & POLLIN) { //Possibly change else if to if
-			cout << "AAAAAAAAA" << endl;
 			if (webThreads.size() > MAX_WEB_CLNT)
 				continue;
 			int clntSock = acceptClient(webSock);

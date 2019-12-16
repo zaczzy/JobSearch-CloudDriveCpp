@@ -56,7 +56,7 @@ typedef struct fd_entry fd_entry;
 #ifdef SERIALIZE
 class VectorHelper {
 public:
-  VectorHelper(std::vector<fd_entry>& _vect) : vect(_vect) {}
+  VectorHelper(std::vector<fd_entry>*& _vect) : vect(_vect) {}
 
 private:
 
@@ -65,8 +65,8 @@ private:
   template<class Archive>
   void save(Archive& ar, const unsigned version) const 
   {  
-      ar & vect.size();
-      for(int i = 0 ; i < vect.size(); i++)
+      ar & vect->size();
+      for(int i = 0 ; i < vect->size(); i++)
       {
           ar & vect[i];
       }
@@ -82,14 +82,14 @@ private:
        {
            fd_entry entry;
            ar & entry;
-           vect.push_back(entry);
+           vect->push_back(entry);
        }
   }
 
   BOOST_SERIALIZATION_SPLIT_MEMBER();
 
 private:
-  std::vector<fd_entry>& vect;
+  std::vector<fd_entry>*& vect;
 };
 #endif
 
@@ -127,7 +127,7 @@ typedef struct
 
     /** If it is a directory */
     uint64_t num_files;
-    std::vector<fd_entry> entry;
+    std::vector<fd_entry>* entry;
     
 #ifdef SERIALIZE
     friend class boost::serialization::access;
@@ -172,7 +172,7 @@ private:
 
   template<class Archive>
   void load(Archive& ar, const unsigned version) {
-      column_type type;
+      //column_type type;
       ar & type;
       if (type == MAIL)
       {
@@ -258,11 +258,18 @@ void add_root_folder(map_tablet::iterator itr)
     file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
     // TODO: Check NULL
 
+    if (verbose)
+        printf("num cols: %lu\n", itr->second.columns.size());
+    content->type = DIRECTORY_TYPE;
     content->num_files = 0;
+    content->entry = new std::vector<fd_entry>();
 
     col.content = content; 
     /** Add the entry to the map */
-    itr->second.columns.insert(std::make_pair(std::string("root"), col));
+    itr->second.columns.insert(std::make_pair(std::string("/r00t"), col));
+
+    if (verbose)
+        printf("num cols: %lu\n", itr->second.columns.size());
 
     if (verbose)
         printf("added root folder for the user\n");
@@ -579,8 +586,8 @@ int delete_file(delete_file_request* request)
             fd_entry entry;
             entry.type = FILE_TYPE;
             strncpy(entry.name, request->filename, strlen(request->filename));
-            std::vector<fd_entry>::iterator a = std::find(content->entry.begin(), content->entry.end(), entry);
-            content->entry.erase(a);
+            std::vector<fd_entry>::iterator a = std::find(content->entry->begin(), content->entry->end(), entry);
+            content->entry->erase(a);
 
             if (verbose)
                 printf("file %s deleted\n", request->filename);
@@ -782,7 +789,7 @@ bool store_file(put_file_request* request)
             fd_entry entry;
             entry.type = FILE_TYPE;
             strncpy(entry.name, request->filename, strlen(request->filename));
-            content->entry.push_back(entry);
+            content->entry->push_back(entry);
         }
 
 
@@ -932,7 +939,7 @@ int create_folder(create_folder_request* request)
             fd_entry entry;
             entry.type = DIRECTORY_TYPE;
             strncpy(entry.name, request->folder_name, strlen(request->folder_name));
-            content->entry.push_back(entry);
+            content->entry->push_back(entry);
         }
 
         if (verbose)
@@ -941,7 +948,7 @@ int create_folder(create_folder_request* request)
     return SUCCESS;
 }
 
-int get_folder_content(get_folder_content_request* request, int fd)
+int get_folder_content(get_folder_content_request* request, int fd, char** response_str)
 {
     char* row = request->username;
 
@@ -972,16 +979,40 @@ int get_folder_content(get_folder_content_request* request, int fd)
     }
     else 
     {
-        file_content* content = (file_content*)(row_itr->second.content);
+        tablet_column* col = &(row_itr->second);
+        file_content* content = (file_content*)col->content;
+        //file_content* content = (file_content*)(row_itr->content);
 
+        printf("type : %d num_files: %d\n", content->type, content->num_files);
         std::string content_list;
-        for(auto it = content->entry.begin(); it != content->entry.end(); it++)
-        {
-            content_list += (((*it).type == FILE_TYPE) ? 'F' : 'D') + std::string((*it).name) + '~';
-        }
 
         if (verbose)
-            printf("Deleted folder %s recursively\n", column);
+            printf("content entry vector size : %lu\n", content->entry->size());
+            
+        for(auto it = content->entry->begin(); it != content->entry->end(); it++)
+        {
+            content_list += ((it->type == FILE_TYPE) ? 'F' : 'D') + std::string(it->name) + '~';
+        }
+        char* response;
+        if (content_list.length() == 0)
+        {
+            response = (char*)malloc(2 * sizeof(char));
+            strcpy(response, "~");
+
+            if (verbose)
+                printf("response if len 1: %s\n", response);
+        }
+        else
+        {
+            response = (char*)malloc(content_list.length() * sizeof(char));
+            strncpy(response, content_list.c_str(), content_list.length());
+
+
+            if (verbose)
+                printf("response if len > 1: %s\n", response);
+        }
+       
+        *response_str = response;
     }
     return SUCCESS;
 }
@@ -1043,8 +1074,8 @@ int delete_folder(delete_folder_content_request* request)
             fd_entry entry;
             entry.type = DIRECTORY_TYPE;
             strncpy(entry.name, request->folder_name, strlen(request->folder_name));
-            std::vector<fd_entry>::iterator a = std::find(content->entry.begin(), content->entry.end(), entry);
-            content->entry.erase(a);
+            std::vector<fd_entry>::iterator a = std::find(content->entry->begin(), content->entry->end(), entry);
+            content->entry->erase(a);
         }
         if (verbose)
             printf("Deleted folder %s recursively\n", column);
@@ -1343,8 +1374,16 @@ bool process_command(char* command, int len, int fd)
         get_folder_content_request* folder_request = (get_folder_content_request*)command;
 
         /** Get file data */
-        int res = get_folder_content(folder_request, fd);
+        char* response;
+        int res = get_folder_content(folder_request, fd, &response);
 
+        if (verbose)
+            printf("sending response to get folder content : %s\n", response);
+        if (res == SUCCESS)
+        {
+            send_msg_to_socket(response, strlen(response), fd);
+            return SUCCESS;
+        }
         if (res == ERR_FILE_DOESNT_EXIST)
             strncpy(message, "-ERR folder doesn't exist", strlen("-ERR folder doesn't exist"));
         else if (res == ERR_USER_DOESNT_EXIST)
