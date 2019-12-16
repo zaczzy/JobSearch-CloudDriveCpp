@@ -1582,11 +1582,14 @@ void respond_with_seq_no(recovery_req req)
     }
 }
 
-void ask_primary(int group_no)
+void ask_primary(unsigned short group_no)
 {
     char request[64];
     
-    sprintf(request, "%dprimary", group_no);
+    sprintf(request, "%02huprimary", group_no);
+
+    if (verbose)
+        printf("primary no request len : %u data : %s\n", strlen(request), request);
 
     int bytes = write(master_sockfd, request, strlen(request));
 
