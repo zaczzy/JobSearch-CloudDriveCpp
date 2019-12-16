@@ -1366,6 +1366,8 @@ bool process_command(char* command, int len, int fd)
         /** Get file data */
         int res = create_folder(folder_request);
 
+        if (res == SUCCESS)
+            strncpy(message, "+OK folder created", strlen("+OK folder created"));
         if (res == ERR_FILE_ALREADY_EXISTS)
             strncpy(message, "-ERR folder already exist", strlen("-ERR folder already exist"));
         else if (res == ERR_USER_DOESNT_EXIST)
@@ -1387,6 +1389,8 @@ bool process_command(char* command, int len, int fd)
         /** Get file data */
         int res = delete_folder(del_request);
 
+        if (res == SUCCESS)
+            strncpy(message, "+OK folder deleted", strlen("+OK folder deleted"));
         if (res == ERR_FILE_DOESNT_EXIST)
             strncpy(message, "-ERR folder doesn't exist", strlen("-ERR folder doesn't exist"));
         else if (res == ERR_USER_DOESNT_EXIST)
