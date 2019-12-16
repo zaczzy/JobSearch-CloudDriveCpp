@@ -1,3 +1,4 @@
+#include <cstring>
 #include "servercommon.h"
 #include "backendrelay.h"
 
@@ -20,11 +21,14 @@ BackendRelay::~BackendRelay() {
  * Send command to backend (ritika)
  */
 string BackendRelay::sendCommand(string command) {
+	char *c_command = (char *)command.c_str();
 	char buff[BUFF_SIZE];
-	write(masterSock, (char *)command.c_str(), command.length());
+	write(masterSock, c_command, strlen(c_command));
+	if (VERBOSE)
+		fprintf(stderr, "[%d][BACK] S: %s\n", masterSock, c_command);
 	read(masterSock, buff, sizeof(buff));
-//	if (VERBOSE)
-//		fprintf(stderr, "%s\n", buff);
+	if (VERBOSE)
+		fprintf(stderr, "[%d][BACK] C: %s\n", masterSock, buff);
 	string result = buff;
 	return result;
 }

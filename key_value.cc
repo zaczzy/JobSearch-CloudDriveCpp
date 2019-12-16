@@ -270,6 +270,7 @@ void add_root_folder(map_tablet::iterator itr)
 
 int add_user(char* username, char* password)
 {
+    printf("username: %s password: %s\n", username, password);
     if (tablet.size() == MAX_TABLET_USERS)
         return ERR_EXCEEDED_MAX_TABLET_USER_LIMIT;
 
@@ -346,6 +347,12 @@ int auth_user(char* username, char* password)
 
         return SUCCESS;
     }
+    else
+    {
+        if (verbose)
+            printf("user not authenticated\n");
+    }
+    
 
     return ERR_WRONG_PASSWORD;
 }
@@ -386,7 +393,9 @@ int store_email(put_mail_request* request)
     *(content->header) = request->header;
     content->header->email_id = email_id;
     content->email_id = email_id;
+    content->body_len = request->email_len;
 
+    printf("email body : %s \n subject: %s\n email len : %d\n", request->email_body, request->header.subject, request->email_len);
     col.content = content; 
     /** Add the entry to the map */
     itr->second.columns.insert(std::make_pair(std::string(email_id_str), col));
@@ -678,9 +687,13 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
         strncpy(response->username, request->username, strlen(request->username));
         response->email_id = request->email_id;
 
+   
         // TODO: Check for index value greater than num_emails before using it
-        strncpy(response->mail_body, content->email_body, strlen(content->email_body));
-        response->mail_body_len = strlen(response->mail_body);
+        strncpy(response->mail_body, content->email_body, content->body_len);
+        response->mail_body_len = content->body_len;
+
+         printf("email body : %s \n email len : %d\n", response->mail_body, response->mail_body_len);
+   
     }
     else /** column doesn't exist */
     {
@@ -1269,7 +1282,7 @@ bool process_command(char* command, int len, int fd)
     if (strncmp(command, "add", strlen("add")) == 0 || strncmp(command, "ADD", strlen("ADD")) == 0)
     {
         /** Remove the newline character */
-        command[strlen(command) - 1] = '\0';
+        //command[strlen(command) - 1] = '\0';
         /** LOg this entry into the log file */
         add_log_entry(ADD_USER, command);
 
@@ -1359,6 +1372,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        printf("sending msg : %s\n", message);
         send_msg_to_socket(message, strlen(message), fd);
 
         return SUCCESS;

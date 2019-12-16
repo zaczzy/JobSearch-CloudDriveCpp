@@ -19,10 +19,13 @@ public:
 	~CookieRelay();
 	//change genCookie and fetchBrowser to use sockets!!
 	int genCookie(string browser);
+	void delCookie(int cookie);
 	string fetchBrowser(int cookie);
 
 	pthread_mutex_t mutex_sock;
 private:
+	string sendCommand(string command);
+
 	int sock;
 	int latestCookie;
 	map<int, string> cookie2Browser;

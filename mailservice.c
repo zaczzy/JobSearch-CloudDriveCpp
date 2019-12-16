@@ -46,7 +46,7 @@ struct tm * timeinfo;
 */  
 
 int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *rcpt_user,
-		char *html_response, int server_fd, get_mail_response *resp) {
+		char *subject, char *html_response, int server_fd, get_mail_response *resp) {
   int valid = FAILURE;    //Defensive programming
   char send_msg[1000];
   char recv_msg[1000];
@@ -99,7 +99,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
       printf("put <%s> <%s>", rcpt_user, mail_msg);
 #endif
       char recv_msg[1000];
-      valid = send_email(user, rcpt_user, mail_msg, server_fd, recv_msg);
+      valid = send_email(user, rcpt_user, mail_msg, subject, server_fd, recv_msg);
       //send(send_msg);
       strcpy(html_response, recv_msg);
 
@@ -128,7 +128,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
 *  the system
 */  
 
-int send_email(char * user, char *rcpt_user, char *mail_msg, int server_fd, char recv_msg[]) {
+int send_email(char * user, char *rcpt_user, char *mail_msg, char *subject, int server_fd, char recv_msg[]) {
 
 
   time ( &rawtime );
@@ -142,7 +142,7 @@ int send_email(char * user, char *rcpt_user, char *mail_msg, int server_fd, char
  
   strcpy(header.from, user);
   strcpy(header.to, rcpt_user);
-  strcpy(header.subject, "Subject1");
+  strcpy(header.subject, subject);
   strcpy(header.date, asctime(timeinfo));
   strcpy(request.prefix, "putmail");
   strcpy(request.username, user);
@@ -242,9 +242,11 @@ int downloadEmail(char *user, uint16_t mailId, char *msg, int server_fd, char em
   printf("username: %s\n", (char *)mail_resp.username);
   printf("email_id: %d\n", mail_resp.email_id);
 #endif
-  printf("email_len: %d\n", mail_resp.mail_body_len);
-  printf("email_body: %s\n", mail_resp.mail_body);
-  strcpy(email_body, mail_resp.mail_body);
+  fprintf(stderr,"\n\n\nemail_len: %d\n", mail_resp.mail_body_len);
+  fprintf(stderr,"\nemail_body: %s\n", mail_resp.mail_body);
+  
+  strncpy(email_body, mail_resp.mail_body, mail_resp.mail_body_len);
+  email_body[mail_resp.mail_body_len] = '\0';
 
   return 0;
 }
