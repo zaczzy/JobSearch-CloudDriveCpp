@@ -1597,7 +1597,7 @@ void ask_primary(int group_no)
     //primary_ip 
 }
 
-void send_new_log()
+void send_new_log(unsigned long long seq_no)
 {
     
 }

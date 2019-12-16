@@ -21,7 +21,7 @@
 #include "key_value.h"
 
 #define IP_ADDRESS_LEN  16
-#define ADMIN_PORT      3333
+//#define ADMIN_PORT      3333
 #define MASTER_PORT     2333
 
 bool verbose = false;
@@ -425,7 +425,11 @@ void* run_server_for_admin(void* args)
 {
     if (verbose)
         printf("running server for admin\n");
-    int fd = prepare_socket(ADMIN_PORT);
+
+    int admin_port = (group_no * 1200) + server_no;
+    if (verbose)
+        printf("admin port : %d\n", admin_port);
+    int fd = prepare_socket(admin_port);
 
     if (fd == -1)
     {
