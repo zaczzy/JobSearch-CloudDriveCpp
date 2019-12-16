@@ -11,7 +11,7 @@
 #include "socket.h"
 #include "key_value.h"
 #include "key_value.h"
-
+#define MAX_REQUEST_SIZE 4096
 extern bool verbose;
 extern volatile bool terminate;
 
@@ -23,14 +23,14 @@ void* read_commands(void* args)
     std::vector<int64_t> my_nums;
     int* client_fd = (int*)(args);
 
-    char buffer[2048];
+    char buffer[MAX_REQUEST_SIZE];
     while(!terminate)
     {
-        memset(buffer, 0, sizeof(buffer));
+        memset(buffer, 0, MAX_REQUEST_SIZE);
 
         /** Read the command from the client */
         int ret;
-        ret = read(*client_fd, buffer, sizeof(buffer));
+        ret = read(*client_fd, buffer, MAX_REQUEST_SIZE);
 
         if (ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
         {
@@ -44,6 +44,7 @@ void* read_commands(void* args)
         else if (ret > 0)
         {
             printf("read %d bytes\n", ret);
+            printf("<%s>\n", buffer);
             if (terminate)
                 goto term;
         

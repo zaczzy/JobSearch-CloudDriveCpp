@@ -127,8 +127,7 @@ void *cookieThreadFunc(void *args) {
 		fprintf(stderr, "[%d][COOK] LB: +OK server ready [localhost]\r\n", clntSock);
 
 	while (true) {
-		//read shit
-		cout << "from cookieThreadFunc" << endl;
+		// cout << "from cookieThreadFunc" << endl;
 		bool b_break = false;
 		string requestLine = readClient(clntSock, &b_break);
 		if (b_break)
@@ -275,7 +274,6 @@ int main(int argc, char *argv[])
 		}
 		//cookie socket
 		else if (fds[1].revents & POLLIN) {
-			cout << "cookie" << endl;
 //			if (controlThreads.size() > MAX_CTRL_CLNT)
 //				continue;
 			//accept shit

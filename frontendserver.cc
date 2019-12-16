@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 				cleanup();
 			pthread_detach(ntid);
 			webThreads.insert(ntid);
-			cout << "\n~~~~~\n" << webThreads.size() << "\n~~~~~\n" << endl;
+			// cout << "\n~~~~~\n" << webThreads.size() << "\n~~~~~\n" << endl;
 		}
 		//control socket
 		else if (fds[1].revents & POLLIN) {

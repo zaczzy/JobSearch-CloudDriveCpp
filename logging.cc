@@ -113,8 +113,12 @@ int add_log_entry(op_type type, void* data)
     {
         case ADD_FILE:
             {
+                if(verbose)
+                    printf("adding log==\n");
                 put_file_request* req = (put_file_request*)data;
                 oa << *req;
+                 if(verbose)
+                    printf("added log==\n");
             }
             break;
         case ADD_FOLDER:
@@ -174,6 +178,9 @@ int add_log_entry(op_type type, void* data)
     }
    
     ofs.flush();
+
+    if (verbose)
+        printf("updating sequence no \n");
     /** Update the sequence number */
     FILE* file = fopen(LOG_SEQ_NO_FILE, "r+");
 

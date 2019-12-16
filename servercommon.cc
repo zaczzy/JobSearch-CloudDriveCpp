@@ -30,8 +30,11 @@ void die(string msg, bool isThread){
  */
 void pauseBeforeConnect() {
 	string beans;
-	cout << "Pausing for setup of other servers..." << endl;
-	cin >> beans;
+	cout << "Pausing for others. Press Enter when ready." << endl;
+	char c = fgetc(stdin);
+	while (c != '\n')
+		c = fgetc(stdin);
+	cout << "Resuming." << endl;
 }
 
 /*
@@ -57,7 +60,7 @@ string readClient(int clntSock, bool *b_break) {
 	if (shutdownFlag)
 		die("shutdown");
 
-	cout << "try read client" << endl;
+	// cout << "try read client" << endl;
 	int i = read(clntSock, c_requestLine, sizeof(c_requestLine));
 	//read() error
 	if (i < -1)
@@ -65,7 +68,7 @@ string readClient(int clntSock, bool *b_break) {
 		die("read in loadbalancer", false);
 	//client closed connection
 	if (i == 0) {
-		cout << c_requestLine << "====Other closed socket [" << clntSock << "]" << endl;
+		// cout << c_requestLine << "====Other closed socket [" << clntSock << "]" << endl;
 		*b_break = true;
 		return "";
 	}
