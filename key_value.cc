@@ -921,6 +921,22 @@ int create_folder(create_folder_request* request)
         tablet_column col;
         col.type = DRIVE;
 
+        file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
+     // TODO: Check NULL
+
+     if (verbose)
+        printf("num cols: %lu\n", itr->second.columns.size());
+     content->type = DIRECTORY_TYPE;
+        content->num_files = 0;
+     content->entry = new std::vector<fd_entry>();
+
+        col.content = content; 
+    /** Add the entry to the map */
+    itr->second.columns.insert(std::make_pair(std::string("/r00t"), col));
+
+#if 0
+        
+
         /** Add the new folder */
         file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
         // TODO: Check NULL
@@ -930,7 +946,7 @@ int create_folder(create_folder_request* request)
         col.content = content; 
         /** Add the entry to the map */
         itr->second.columns.insert(std::make_pair(std::string(column), col));
-
+#endif
         /** Add this folder to its parent's list */
         map_tablet_row:: iterator parent_itr; 
         if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
@@ -1005,8 +1021,9 @@ int get_folder_content(get_folder_content_request* request, int fd, char** respo
         }
         else
         {
-            response = (char*)malloc(content_list.length() * sizeof(char));
+            response = (char*)malloc((content_list.length()+1) * sizeof(char));
             strncpy(response, content_list.c_str(), content_list.length());
+            response[content_list.length()] = '\0';
 
 
             if (verbose)

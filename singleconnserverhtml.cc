@@ -501,7 +501,7 @@ void SingleConnServerHTML::backbone() {
     string requestLine = readClient(sock, &b_break);
     if (b_break) break;
 
-    // if (VERBOSE)
+    if (VERBOSE)
       fprintf(stderr, "[%d][WEB] C: {%s}\n", sock, (char *)requestLine.c_str());
 
     vector<string> headers;
