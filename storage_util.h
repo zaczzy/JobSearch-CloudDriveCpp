@@ -10,7 +10,7 @@ void request_file_names(std::vector<std::string>& filenames,
                         const std::string& folder_name, BackendRelay* BR);
 bool request_file_download(const std::string& username,
                            const std::string& current_path,
-                           const std::string& fname, BackendRelay* BR);
+                           std::string& fname, BackendRelay* BR);
 void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
                          BackendRelay* BR);
 std::string replace_first_occurrence(std::string& s,

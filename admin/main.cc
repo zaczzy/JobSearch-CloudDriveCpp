@@ -215,7 +215,7 @@ void process_request(int conn_fd) {
       // client disconnect
       break;
     }
-    buffer[buffer_size] = 0;
+    buffer[buffer_size] = '\0';
     string request = buffer;
     size_t firstSpace = request.find(" ");
     size_t secondSpace = request.find(" ", firstSpace + 1);

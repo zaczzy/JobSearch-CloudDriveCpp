@@ -641,6 +641,7 @@ int get_file_data(get_file_request* request, int fd)
             if ((content->file_len - bytes_sent) > CHUNK_SIZE)
             {
                 response.has_more = true;
+                
                 strncpy(response.chunk, content->file_data, CHUNK_SIZE);
                 bytes_sent += CHUNK_SIZE;
             }
@@ -650,7 +651,7 @@ int get_file_data(get_file_request* request, int fd)
                 strncpy(response.chunk, content->file_data, content->file_len);
                 bytes_sent += content->file_len;
             }
-        
+            response.f_len = content->file_len;
             send_msg_to_socket((char*)(&response), sizeof(response), fd);
         }
     }
@@ -1309,8 +1310,23 @@ bool process_command(char* command, int len, int fd)
     {
         put_file_request* file_request = (put_file_request*)command;
 
+        if (verbose)
+        {
+            printf("putfile req:\n");
+            printf("username: %s\n", file_request->username);
+            printf("filename: %s\n", file_request->filename);
+            printf("directory path: %s\n", file_request->directory_path);
+            printf("data: %s\n", file_request->data);
+            printf("len: %lu\n", file_request->chunk_len);
+        }
+        if (verbose)
+            printf("adding log entry for putfile\n");
+
         /** LOg this entry into the log file */
         add_log_entry(ADD_FILE, file_request);
+
+        if (verbose)
+            printf("added log entry for putfile\n");
 
         /** Store the new file */
         int res = store_file(file_request);
@@ -1322,6 +1338,9 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        if (verbose)
+            printf("sending msg: %s\n", message);
+       
         send_msg_to_socket(message, strlen(message), fd);
             
         return SUCCESS;
@@ -1405,11 +1424,13 @@ bool process_command(char* command, int len, int fd)
         /** Get file data */
         int res = create_folder(folder_request);
 
+        if (res == SUCCESS)
+            strncpy(message, "+OK added folder", strlen("+OK added folder"));
         if (res == ERR_FILE_ALREADY_EXISTS)
             strncpy(message, "-ERR folder already exist", strlen("-ERR folder already exist"));
         else if (res == ERR_USER_DOESNT_EXIST)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-
+        
         message[strlen(message)] = '\0';
         send_msg_to_socket(message, strlen(message), fd);
         

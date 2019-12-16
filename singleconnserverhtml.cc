@@ -211,7 +211,6 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
 
   // if not logged in
   if (cookieValue == -1) {
-    cerr << "UH OH " << requestURI << endl;
     redirectTo = requestURI;
     string HTML = generateLogin();
     sendHeaders(HTML.length());  // possibly -4 length
@@ -316,12 +315,6 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
   if (is_multipart_form) {
     string URI = requestURI.substr(7);  // "/r00t/dir1" or "/r00t"
     boundary.insert(0, "--");
-    // sanity check
-    if (boundary.compare(string(body)) != 0) {
-      cerr << "HandlePOST first part boundary of multipart form abnormal!"
-           << endl;
-      return;
-    }
     bool should_read_next_part = true;
     int total_body_read = 0;
     string upload_fname;
@@ -337,6 +330,9 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
              << total_body_read << endl;
       }
     }
+    requestURI = "/storage.html";
+    cout << "username: " << username << endl;
+    handleGET();
     return;
   } else if (requestURI.find("/addfolder") == 0) {
     string current_path = requestURI.substr(10);
@@ -351,6 +347,9 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     if (!BR->createFolderRequest(&req)) {
       cerr << "POST /addfolder failure!" << endl;
     }
+    requestURI = "/storage.html";
+    handleGET();
+    return;
   } else if (requestURI.find("/rmfolder") == 0) {
     string folder_path = requestURI.substr(9);
     string path, folder;
@@ -364,6 +363,8 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     if (!BR->removeFolderRequest(&req)) {
       cerr << "POST /rmfolder failure!" << endl;
     }
+    requestURI = "/storage.html";
+    handleGET();
     return;
   }
   char buff[BUFF_SIZE];
@@ -380,7 +381,6 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
 
     // Add new user
     if (c_adduser != NULL && strlen(c_adduser) > 0) {
-      cout << "BYE" << endl;
       //			string remember = adduser_str +
       // strlen("adduser=");
       string s_addCmd = "ADD " + user + " " + pass;
@@ -403,8 +403,6 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     // if invalid credentials
 
     if (authResult.substr(0, 3).compare("+OK") != 0) {
-      cout << "HI" << endl;
-
       //		//hardcoded user/pass:
       //		if (user.compare("michal") != 0 || pass.compare("p") !=
       // 0) { redirect to login page
@@ -498,12 +496,12 @@ void SingleConnServerHTML::backbone() {
     // interferes with standalone read And I don't want to use nonblocking
     // sockets Can't use strtok because of multichar delimiters \r\n and
     // \r\n\r\n
-    cout << "from singleConnServerHTML" << endl;
+    // cout << "from singleConnServerHTML" << endl;
     bool b_break = false;
     string requestLine = readClient(sock, &b_break);
     if (b_break) break;
 
-    if (VERBOSE)
+    // if (VERBOSE)
       fprintf(stderr, "[%d][WEB] C: {%s}\n", sock, (char *)requestLine.c_str());
 
     vector<string> headers;
@@ -553,7 +551,7 @@ void SingleConnServerHTML::backbone() {
     }
     // existing cookie, existing connection
     if (receivedCookie != -1 && cookieValue != -1) {
-      cout << "(A)" << endl;
+      // cout << "(A)" << endl;
       // check matching cookies
       if (receivedCookie != cookieValue) {
         sendStatus(401);
@@ -562,7 +560,7 @@ void SingleConnServerHTML::backbone() {
     }
     // existing cookie, new connection
     else if (receivedCookie != -1 && cookieValue == -1) {
-      cout << "(B)" << endl;
+      // cout << "(B)" << endl;
       // login automatically: will only work when cookie server is separate from
       // singleconnserverhtml for now, just proceed (manual login)
       pthread_mutex_lock(&(CR->mutex_sock));
@@ -591,15 +589,13 @@ void SingleConnServerHTML::backbone() {
     bool is_multipart_form = false;
     string boundary;
     int content_length = 0;
-    cout << "THIS PART should be REACHED!!!" << endl;
     if (req.compare("POST") == 0 && requestURI.find("/upload") == 0) {
       is_multipart_form = true;
-      cout << "THIS PART IS REACHED" << endl;
       for (string header : headers) {
         if (header.find("Content-Type: multipart/form-data") == 0) {
           boundary = header.substr(header.rfind("=") + 1);
         } else if (header.find("Content-Length: ") == 0) {
-          content_length = stoi(header.substr(17));
+          content_length = stoi(header.substr(16));
         }
       }
     }
@@ -617,6 +613,6 @@ void SingleConnServerHTML::backbone() {
     else
       sendStatus(501);
   }
-  cout << "===closing SingleConnServerHTML" << endl;
+  // cout << "===closing SingleConnServerHTML" << endl;
   close(sock);
 }

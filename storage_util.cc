@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sstream>  // istringstream
 #include "data_types.h"
-#define MAX_FOLDER_INFO_LENGTH 16184
+#define MAX_FOLDER_INFO_LENGTH 128
 static void split(std::vector<std::string>& tokens, const std::string& s,
                   char delimiter) {
   std::string token;
@@ -47,9 +47,7 @@ void request_file_names(std::vector<std::string>& filenames,
   std::string response_line =
       BR->sendFolderRequest(&req, MAX_FOLDER_INFO_LENGTH);
   if (!response_line.compare("")) return;
-  if(!response_line[0] == '~'){
-    split(filenames, response_line, '~');
-  }
+  split(filenames, response_line, '~');
 }
 
 void generate_display_list(std::string& to_replace,
@@ -71,8 +69,8 @@ void generate_display_list(std::string& to_replace,
                     "</a></div>";
     }
   }
-  if (filenames.size() ==0) {
-    to_replace = "<div><b>The folder is currently empty</b>y</div>";
+  if (filenames.size() == 0) {
+    to_replace = "<div><b>The folder is currently empty</b></div>";
   }
 }
 void split_filename(const std::string& str, std::string& path,
@@ -83,15 +81,17 @@ void split_filename(const std::string& str, std::string& path,
 }
 bool request_file_download(const std::string& username,
                            const std::string& current_path,
-                           const std::string& fname, BackendRelay* BR) {
+                           std::string& fname, BackendRelay* BR) {
   std::vector<std::string> ls;
   string path, folder;
+  fname.insert(0, string("F"));
   split_filename(current_path, path, folder);
   request_file_names(ls, path, username, folder, BR);
   if (std::find(ls.begin(), ls.end(), fname.c_str()) == ls.end()) {
     // fname in the list
     return false;
   }
+  fname = fname.substr(1);
   // if file exists
   get_file_request req;
   memset(&req, 0, sizeof(req));
@@ -110,7 +110,7 @@ void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
     // full chunk
     char* tmp = new char[CHUNK_SIZE + 1];
     memcpy(tmp, resp.chunk, CHUNK_SIZE);
-    tmp[CHUNK_SIZE] = 0;
+    tmp[CHUNK_SIZE] = '\0';
     chunk = tmp;
     delete[] tmp;
   } else {
@@ -128,25 +128,28 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   std::string buff_str;
   while ((buffer_size = read(sock, buffer, MAX_CHUNK_PLUS_SIZE)) ==
          MAX_CHUNK_PLUS_SIZE) {
-    buffer[buffer_size] = 0;
+    buffer[buffer_size] = '\0';
     buff_str += buffer;
-  };
-  buffer[buffer_size] = 0;
+  }
+  buffer[buffer_size] = '\0';
   buff_str += buffer;
   delete[] buffer;
+
+  // DEBUG PRINT
+  cerr << "C: [" << buff_str << "]" << endl;
 
   // verify that boundary is at the end
   size_t begin_boundary = buff_str.rfind(boundary);
   size_t buff_str_size = buff_str.size();
   bool ret_val;
   // Case 1: this data is not the last part, because it ends with boundary
-  if (begin_boundary + boundary.size() == buff_str_size) {
+  if (begin_boundary + boundary.size() + 2== buff_str_size) {
     ret_val = true;
   }
   // Case 2: last part, ends with boundary plus "--"
-  else if (buff_str[buff_str_size - 1] == '-' &&
-           buff_str[buff_str_size - 2] == '-' &&
-           begin_boundary + boundary.size() + 2 == buff_str_size) {
+  else if (buff_str[buff_str_size - 3] == '-' &&
+           buff_str[buff_str_size - 4] == '-' &&
+           begin_boundary + boundary.size() + 4 == buff_str_size) {
     ret_val = false;
   } else {
     std::cerr << "Programming Error from upload_next_part! : This part of data "
@@ -165,7 +168,7 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   data_start_inx = buff_str.find("\r\n\r\n", fname_end_inx) + 4;
   data_end_inx = buff_str.find("\r\n", data_start_inx);
   std::string data =
-      buff_str.substr(data_start_inx, data_end_inx - data_start_inx);
+      buff_str.substr(data_start_inx, data_end_inx - data_start_inx - 1);
   buff_str.clear();
   *total_body_read += data.size();
   // got username, got directory_path, start send
@@ -176,13 +179,14 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
     confirmed = BR->sendChunk(username, directory_path, filename,
                               data.substr(chunk_id * CHUNK_SIZE, CHUNK_SIZE),
                               CHUNK_SIZE);
+    cout << "Chunk Send: " << confirmed << endl;
     chunk_id++;
     size_yet_to_send -= CHUNK_SIZE;
   }
   // last send chunk
-  confirmed = BR->sendChunk(username, directory_path, filename,
-                            data.substr(CHUNK_SIZE * chunk_id),
-                            size_yet_to_send);
-  // TODO: handle Backend confirmation
+  confirmed =
+      BR->sendChunk(username, directory_path, filename,
+                    data.substr(CHUNK_SIZE * chunk_id), size_yet_to_send);
+  cout << "Last Chunk: " << confirmed  << "with retval: " << ret_val << endl;
   return ret_val;
 };

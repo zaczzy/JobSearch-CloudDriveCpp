@@ -23,7 +23,7 @@
 #define SUCCESS 0
 #define FAILURE 1
 #define MAX_LEN_EMAIL_BODY 256  // Will change this later
-#define CHUNK_SIZE 8192         // WIll change this later
+#define CHUNK_SIZE 2048         // WIll change this later
 #define MAX_EMAILS 10           // WIll change this later
 
 #define LOG_SEQ_NO_FILE "log_seq_no.txt"
