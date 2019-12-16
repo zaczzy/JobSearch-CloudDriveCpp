@@ -1449,6 +1449,7 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
         
         message[strlen(message)] = '\0';
+        printf("mkfolder Message: %s\n", message);
         send_msg_to_socket(message, strlen(message), fd);
         
         return SUCCESS;

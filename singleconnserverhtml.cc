@@ -261,6 +261,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
     vector<string> filenames;
+    cout << "WARNING <" << path << "> foldername<" << folder << ">" << endl; 
     request_file_names(filenames, path, username, folder, BR);
     string to_replace;
     generate_display_list(to_replace, URI, filenames);

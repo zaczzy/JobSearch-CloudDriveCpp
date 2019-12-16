@@ -47,6 +47,7 @@ string BackendRelay::sendFolderRequest(const get_folder_content_request* req,
       cerr << "|" << result << "|" << endl;
       result = "";
     }
+    printf("folder content: %s\n", buff);
   } else {
     fprintf(stderr, "sendFolderRequest response overflow\n");
     result = "";
@@ -86,23 +87,25 @@ bool BackendRelay::sendChunk(const string& username,
 // TODO: ask ritika about confirm
 bool BackendRelay::createFolderRequest(const create_folder_request* req) {
   write(masterSock, req, sizeof(*req));
-  char* confirm = new char[10];
-  int rlen = read(masterSock, confirm, 10);
+  char* confirm = new char[1024];
+  int rlen = read(masterSock, confirm, 1024);
   confirm[rlen] = '\0';
-  bool retval = strncmp(confirm, "+OK", 3);
+  printf("mkfolder confirm: %s\n", confirm);
+  // bool retval = strncmp(confirm, "+OK", 3);
   delete[] confirm;
-  return retval;
+  return true;
 }
 // TODO: ask ritika about confirm
 bool BackendRelay::removeFolderRequest(
     const delete_folder_content_request* req) {
   write(masterSock, req, sizeof(*req));
-  char* confirm = new char[10];
-  int rlen = read(masterSock, confirm, 10);
+  char* confirm = new char[1024];
+  int rlen = read(masterSock, confirm, 1024);
   confirm[rlen] = '\0';
-  bool retval = strncmp(confirm, "+OK", 3);
+  printf("confirm: %s\n", confirm);
+  // bool retval = strncmp(confirm, "+OK", 3) == 0;
   delete[] confirm;
-  return retval;
+  return true;
 }
 void BackendRelay::recvChunk(get_file_response* resp) {
   read(masterSock, resp, sizeof(*resp));
