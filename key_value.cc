@@ -1597,6 +1597,16 @@ void ask_primary(int group_no)
     //primary_ip 
 }
 
+void send_new_log()
+{
+    
+}
+
+void send_checkpoint()
+{
+
+}
+
 void recover()
 {
     /** Ask primary from master */
@@ -1653,7 +1663,8 @@ void recover()
         replay_log();
     }
 
-    // TODO: Tell the master that I am ready to receive requests normally
+    /** Tell the master that I am ready to receive requests normally */
+    int bytes = write(master_sockfd, "ready", strlen("ready"));
 }
 
 
