@@ -1464,6 +1464,8 @@ bool process_command(char* command, int len, int fd)
         /** Get file data */
         int res = delete_folder(del_request);
 
+        if (res == SUCCESS)
+            strncpy(message, "+OK folder deleted", strlen("+OK folder deleted"));
         if (res == ERR_FILE_DOESNT_EXIST)
             strncpy(message, "-ERR folder doesn't exist", strlen("-ERR folder doesn't exist"));
         else if (res == ERR_USER_DOESNT_EXIST)
@@ -1655,11 +1657,14 @@ void respond_with_seq_no(recovery_req req)
     }
 }
 
-void ask_primary(int group_no)
+void ask_primary(unsigned short group_no)
 {
     char request[64];
     
-    sprintf(request, "%dprimary", group_no);
+    sprintf(request, "%02huprimary", group_no);
+
+    if (verbose)
+        printf("primary no request len : %u data : %s\n", strlen(request), request);
 
     int bytes = write(master_sockfd, request, strlen(request));
 
@@ -1668,6 +1673,16 @@ void ask_primary(int group_no)
 
     // TODO: Update primary IP and port
     //primary_ip 
+}
+
+void send_new_log(unsigned long long seq_no)
+{
+    
+}
+
+void send_checkpoint()
+{
+
 }
 
 void recover()
@@ -1726,7 +1741,8 @@ void recover()
         replay_log();
     }
 
-    // TODO: Tell the master that I am ready to receive requests normally
+    /** Tell the master that I am ready to receive requests normally */
+    int bytes = write(master_sockfd, "ready", strlen("ready"));
 }
 
 

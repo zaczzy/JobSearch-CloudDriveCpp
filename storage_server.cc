@@ -21,7 +21,7 @@
 #include "key_value.h"
 
 #define IP_ADDRESS_LEN  16
-#define ADMIN_PORT      3333
+//#define ADMIN_PORT      3333
 #define MASTER_PORT     2333
 
 bool verbose = false;
@@ -29,7 +29,7 @@ volatile bool terminate = false;
 char ip_address[IP_ADDRESS_LEN];
 int server_port_no;
 bool restart = true;
-int server_no, group_no;
+unsigned short server_no, group_no;
 extern int master_sockfd; 
 
 volatile int fds[100];
@@ -107,7 +107,7 @@ term:
     return NULL;
 }
 
-bool read_server_config_master(char* config_file, int group_no, int server_no, char* ip_addr, int* port_no)
+bool read_server_config_master(char* config_file, unsigned short group_no, unsigned short server_no, char* ip_addr, int* port_no)
 {
     /** Open config file */
     FILE* file = fopen(config_file, "r");
@@ -120,7 +120,7 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
         return FAILURE;
     }
     
-    int line_no = 0, position_no = 0;
+    unsigned short line_no = 0, position_no = 0;
     ssize_t ret;
     char *line, *token;
     size_t len = 0;
@@ -203,7 +203,7 @@ bool read_server_config_master(char* config_file, int group_no, int server_no, c
     return SUCCESS;
 }
 
-bool read_server_config(char* config_file, int server_no, char* ip_address, int* port_no)
+bool read_server_config(char* config_file, unsigned short server_no, char* ip_address, int* port_no)
 {
     /** Open config file */
     FILE* file = fopen(config_file, "r");
@@ -271,7 +271,7 @@ bool read_server_config(char* config_file, int server_no, char* ip_address, int*
     return SUCCESS;
 }
 
-void parse_args(int argc, char *argv[], char* config_file, int* group_no, int* server_no)
+void parse_args(int argc, char *argv[], char* config_file, unsigned short* group_no, unsigned short* server_no)
 {
     int opt;
 
@@ -425,7 +425,11 @@ void* run_server_for_admin(void* args)
 {
     if (verbose)
         printf("running server for admin\n");
-    int fd = prepare_socket(ADMIN_PORT);
+
+    int admin_port = (group_no * 1200) + server_no;
+    if (verbose)
+        printf("admin port : %d\n", admin_port);
+    int fd = prepare_socket(admin_port);
 
     if (fd == -1)
     {

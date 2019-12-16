@@ -1,4 +1,4 @@
-CC_FLAGS = -Wall -lpthread -Wsign-conversion -lboost_serialization
+CC_FLAGS = -Wall -lpthread -lboost_serialization
 # S_FLAGS = -fsanitize=address -fno-omit-frame-pointer -pedantic
 VALGRIND_DEBUG_FLAG = -g
 GDB_DEBUG_FLAG = -ggdb
