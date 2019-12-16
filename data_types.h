@@ -1,6 +1,8 @@
-#ifndef DATA_TYPES_H
-#define DATA_TYPES_H
+#ifndef A72BB918_8F17_44D2_84FD_B8711EA9776E
+#define A72BB918_8F17_44D2_84FD_B8711EA9776E
 
+#include <cstdint>
+#include <cstring>
 #include <vector>
 
 #define SERIALIZE
@@ -92,47 +94,28 @@ private:
 #endif
 
 #pragma pack(1)
-typedef struct
-{
-    char prefix[5];
-    char username[32];
-    char password[16];
+typedef struct {
+  char prefix[5];
+  char username[32];
+  char password[16];
 
-}login_request;
+} login_request;
 
 #pragma pack(1)
-struct email_header 
-{
-    char from[64];
-    char to[64];
-    char subject[256];
-    char date[64];
-    unsigned long email_id;
-    
-    bool operator==(const struct email_header& header) const
-    {
-        if (strncmp(subject, header.subject, strlen(subject)) == 0)
-        {
-            if (strncmp(date, header.date, strlen(date)) == 0)
-                return true;
-        }
+struct email_header {
+  char from[64];
+  char to[64];
+  char subject[256];
+  char date[64];
+  unsigned long email_id;
 
-        return false;
+  bool operator==(const struct email_header& header) const {
+    if (strncmp(subject, header.subject, strlen(subject)) == 0) {
+      if (strncmp(date, header.date, strlen(date)) == 0) return true;
     }
-    
-#ifdef SERIALIZE
-    friend class boost::serialization::access;
-   template<class Archive>
-   void serialize(Archive & ar, const unsigned int version)
-   {
-       // Simply list all the fields to be serialized/deserialized.
-       ar & from;
-       ar & to;
-       ar & subject;
-       ar & date;
-       ar & email_id;
-   }
-#endif
+
+    return false;
+  }
 };
 
 #pragma pack(1)
@@ -276,6 +259,7 @@ typedef struct {
 typedef struct {
   char chunk[CHUNK_SIZE];
   bool has_more;
+  size_t f_len;
 } get_file_response;
 
 // CREATE folder
