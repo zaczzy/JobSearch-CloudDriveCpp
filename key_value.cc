@@ -357,7 +357,6 @@ int auth_user(char* username, char* password)
     return ERR_WRONG_PASSWORD;
 }
 
-#if 1
 int store_email(put_mail_request* request)
 {
     char* row = request->username;
@@ -395,7 +394,9 @@ int store_email(put_mail_request* request)
     content->email_id = email_id;
     content->body_len = request->email_len;
 
-    printf("email body : %s \n subject: %s\n email len : %d\n", request->email_body, request->header.subject, request->email_len);
+    if (verbose)
+        printf("email body : %s \n subject: %s\n email len : %d\n", request->email_body, request->header.subject, request->email_len);
+    
     col.content = content; 
     /** Add the entry to the map */
     itr->second.columns.insert(std::make_pair(std::string(email_id_str), col));
@@ -406,79 +407,6 @@ int store_email(put_mail_request* request)
     return SUCCESS;
 }
 
-#else
-bool store_email(put_mail_request* request)
-{
-    char* row = request->username;
-    char* column = request->email_id;
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row with username %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** Check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
-    {
-        tablet_column* col = &(row_itr->second);
-        mail_content* content = (mail_content*)col->content;
-
-        /** Add the new email */
-        //mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
-        // TODO: Check NULL
-        //content->num_emails++;
-
-        char* mail_body = (char*)malloc(request->email_len * sizeof(char));
-
-        email_header* mail_header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
-        // TODO: Check NULL for  both header and body
-
-        strncpy(mail_body, request->email_body, request->email_len);
-        printf("storing mail body : %s\n", mail_body);
-        *mail_header = request->header;
-
-        content->header_list.push_back(mail_header);
-        content->body_list.push_back(mail_body);
-        content->num_emails++;
-    }
-    else /** Create a column with the given email ID */
-    {
-        /** Add the new column to this row */
-        tablet_column col;
-        col.type = MAIL;
-
-        mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
-        // TODO: Check NULL
-        content->num_emails = 1;
-
-        char* mail_body = (char*)malloc(request->email_len * sizeof(char));
-        email_header* mail_header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
-        // TODO: Check NULL
-        strncpy(mail_body, request->email_body, request->email_len);
-        *mail_header = request->header;
-
-        content->header_list.push_back(mail_header);
-        content->body_list.push_back(mail_body);
-       
-        col.content = content; 
-        /** Add the entry to the map */
-        itr->second.columns.insert(std::make_pair(std::string(column), col));
-
-        if (verbose)
-            printf("Added column %s to row %s\n", column, row);
-    }
-    return SUCCESS;
-}
-#endif
-
-#if 1
 int get_email_list(get_mail_request* request, get_mail_response* response)
 {
     char* row = request->username;
@@ -526,53 +454,6 @@ int get_email_list(get_mail_request* request, get_mail_response* response)
     
    return SUCCESS; 
 }
-
-#else
-bool get_email_list(get_mail_request* request, get_mail_response* response)
-{
-    char* row = request->username;
-    char* column = request->email_id;
-
-    map_tablet::iterator itr;
-    
-    /** check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row with username %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
-    {
-        printf("column name: %s\n", row_itr->first.c_str());
-        tablet_column* col = &(row_itr->second);
-        mail_content* content = (mail_content*)col->content;
-        
-        printf("num emails: %lu header list size: %lu mail list size: %lu\n", content->num_emails, content->header_list.size(), content->body_list.size());
-        response->num_emails = content->header_list.size();
-        strncpy(response->prefix, request->prefix, strlen(request->prefix));
-        strncpy(response->username, request->username, strlen(request->username));
-        strncpy(response->email_id, request->email_id, strlen(request->email_id));
-        for (unsigned int i = 0; i < content->header_list.size(); i++)
-        {
-            printf("mail content: %s\n", content->body_list[i]);
-            response->email_headers[i] = *(content->header_list[i]);
-        }
-    }
-    else /** column doesn't exist */
-    {
-        if (verbose)
-            printf("no column with %s exists\n", column);
-        return FAILURE;
-    }
-    
-   return SUCCESS; 
-}
-#endif
 
 #if 1
 int delete_mail(delete_mail_request* request)
@@ -656,7 +537,6 @@ bool delete_mail(delete_mail_request* request)
 }
 #endif
 
-#if 1
 int get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
 {
     char* row = request->username;
@@ -692,8 +572,8 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
         strncpy(response->mail_body, content->email_body, content->body_len);
         response->mail_body_len = content->body_len;
 
-         printf("email body : %s \n email len : %d\n", response->mail_body, response->mail_body_len);
-   
+        if (verbose)
+            printf("email body : %s \n email len : %d\n", response->mail_body, response->mail_body_len);
     }
     else /** column doesn't exist */
     {
@@ -704,54 +584,6 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
     
    return SUCCESS; 
 }
-
-#else
-bool get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
-{
-    char* row = request->username;
-    char* column = request->email_id;
-
-    map_tablet::iterator itr;
-    
-    /** check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row with username %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
-    {
-        if(request->index < 0)
-            return FAILURE;
-
-        tablet_column* col = &(row_itr->second);
-        mail_content* content = (mail_content*)col->content;
-        
-        strncpy(response->prefix, request->prefix, strlen(request->prefix));
-        strncpy(response->username, request->username, strlen(request->username));
-        strncpy(response->email_id, request->email_id, strlen(request->email_id));
-
-        // TODO: Check for index value greater than num_emails before using it
-        printf("getting email body for index: %lu\n", request->index);
-        printf("sending email body: %s\n", content->body_list[request->index]);
-        strncpy(response->mail_body, content->body_list[request->index], strlen(content->body_list[request->index]));
-        response->mail_body_len = strlen(response->mail_body);
-    }
-    else /** column doesn't exist */
-    {
-        if (verbose)
-            printf("no column with %s exists\n", column);
-        return FAILURE;
-    }
-    
-   return SUCCESS; 
-}
-#endif
 
 int delete_file(delete_file_request* request)
 {
