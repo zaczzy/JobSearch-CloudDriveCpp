@@ -47,8 +47,8 @@ void* run_storage_server(void* params)
     /** Prepare the socket - create, bind, and listen to port */
     server_fd = prepare_socket(server_port_no);
 
-    int flags = fcntl(server_fd, F_GETFL, 0);
-    fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
+    //int flags = fcntl(server_fd, F_GETFL, 0);
+    //fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 
     if (server_fd == -1)
         exit(EXIT_FAILURE);

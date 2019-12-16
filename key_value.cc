@@ -324,7 +324,7 @@ int delete_user(char* username, char* password)
     return SUCCESS;
 }
 
-bool auth_user(char* username, char* password)
+int auth_user(char* username, char* password)
 {
     map_tablet::iterator itr;
     
@@ -345,6 +345,12 @@ bool auth_user(char* username, char* password)
 
         return SUCCESS;
     }
+    else
+    {
+        if (verbose)
+            printf("user not authenticated\n");
+    }
+    
 
     return ERR_WRONG_PASSWORD;
 }
@@ -1358,6 +1364,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        printf("sending msg : %s\n", message);
         send_msg_to_socket(message, strlen(message), fd);
 
         return SUCCESS;

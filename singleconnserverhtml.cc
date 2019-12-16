@@ -277,6 +277,7 @@ void SingleConnServerHTML::handlePOST(char *body) {
 		string authResult = BR->sendCommand(s_authCmd);
 		string okerr = authResult.substr(0,3);
 		//if invalid credentials
+		
 		if (authResult.substr(0,3).compare("+OK") != 0) {
 			cout << "HI" << endl;
 
@@ -350,9 +351,9 @@ void SingleConnServerHTML::splitHeaderBody(string input, vector<string> *header_
 	while((i_endline = remainingHeaders.find("\r\n")) != std::string::npos) {
 		string line = remainingHeaders.substr(0,i_endline);
 		remainingHeaders = remainingHeaders.substr(i_endline+strlen("\r\n"));
+		header_list->push_back(line);
 		if (remainingHeaders.length() == 0)
 			break;
-		header_list->push_back(line);
 	}
 }
 
@@ -389,6 +390,7 @@ void SingleConnServerHTML::backbone() {
 //
 //
 //		//from strtok single character delimiter, modify in-place, char * hell to string paradise
+		cout << "from singleConnServerHTML" << endl;
 		bool b_break = false;
 		string requestLine = readClient(sock, &b_break);
 		if (b_break)

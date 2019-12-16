@@ -128,6 +128,7 @@ void *cookieThreadFunc(void *args) {
 
 	while (true) {
 		//read shit
+		cout << "from cookieThreadFunc" << endl;
 		bool b_break = false;
 		string requestLine = readClient(clntSock, &b_break);
 		if (b_break)
@@ -232,6 +233,7 @@ int main(int argc, char *argv[])
 				continue;
 			socks.insert(clntSock);
 			//read shit
+			cout << "from //web socket" << endl;
 			bool b_break = false;
 			string requestLine = readClient(clntSock, &b_break);
 			if (b_break) {
