@@ -455,7 +455,6 @@ int get_email_list(get_mail_request* request, get_mail_response* response)
    return SUCCESS; 
 }
 
-#if 1
 int delete_mail(delete_mail_request* request)
 {
     char* row = request->username;
@@ -495,47 +494,6 @@ int delete_mail(delete_mail_request* request)
 
    return SUCCESS;
 }
-#else
-bool delete_mail(delete_mail_request* request)
-{
-    char* row = request->username;
-    char* column = request->email_id;
-
-    map_tablet::iterator itr;
-    
-    /** check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row with username %s exists\n", row);
-
-        return FAILURE;
-    }
-
-    /** check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
-    {
-        if(request->index < 0)
-            return FAILURE;
-
-        tablet_column* col = &(row_itr->second);
-        mail_content* content = (mail_content*)col->content;
-        
-        // TODO: Check for index value greater than num_emails before using it
-        content->body_list.erase(content->body_list.begin() + request->index);
-        content->header_list.erase(content->header_list.begin() + request->index);
-    }
-    else /** column doesn't exist */
-    {
-        if (verbose)
-            printf("no column with %s exists\n", column);
-        return FAILURE;
-    }
-    
-   return SUCCESS; 
-}
-#endif
 
 int get_mail_body(get_mail_body_request* request, get_mail_body_response* response)
 {
