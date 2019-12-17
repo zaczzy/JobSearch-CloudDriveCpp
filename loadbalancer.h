@@ -10,7 +10,7 @@ string getFirstFreeServer(vector<int> loads);
 void redirect(int clntSock, string fwdAddr);
 void *cookieThreadFunc(void *args);
 
-const int MAX_WEB_CLNT = 100; //MATCH WITH FRONTENDSERVER
+const int MAX_WEB_CLNT = 100;
 const int WEB_PORT = 7000;
 const int COOKIE_PORT = 9000;
 

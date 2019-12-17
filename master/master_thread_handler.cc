@@ -1,6 +1,9 @@
 //
 // Created by Zachary Zhao on 10/8/19.
 //
+#include <iostream>
+//#include <stdio.h>
+#include <string.h>
 #include "master_thread_handler.h"
 #include <errno.h>
 #include <signal.h>
@@ -13,13 +16,13 @@
 #include "server_config_store.h"
 #include "thread_pool.h"
 #include "util.h"
-#define BUFFER_SIZE 1002
+#define BUFFER_SIZE 256
 using namespace std;
 void write_sock(int fd, const struct server_netconfig *server_config) {
   unsigned int wlen = sizeof(server_config->serv_addr), bytes_w = 0;
   do {
     unsigned int bytes_wt =
-        write(fd, &server_config->serv_addr, wlen - bytes_w);
+        write(fd, &(server_config->serv_addr), wlen - bytes_w);
     if (bytes_wt <= 0) {
       perror("write failed");
     } else {
@@ -52,8 +55,27 @@ static bool is_request_for_primary(string &req) {
   return endsWith(req, string("primary"));
 }
 int my_handler(int fd) {
+  unsigned short id_stuff[2];
+  memset(id_stuff, -1, sizeof(id_stuff));
+  read(fd, &id_stuff, sizeof(id_stuff));
+
+  cout << "Received [" << id_stuff[0] << " " << id_stuff[1] << "]" << endl;
+
+  if (id_stuff[0] != 0 || id_stuff[1] != 0) {
+	  // check to register backends
+	  pair<int, size_t> tmp;
+	  tmp.first = (int) id_stuff[0];
+	  tmp.second = (size_t) id_stuff[1];
+	  sock2servid[fd] = tmp;
+	  // mark backend as alive
+	  groups[sock2servid[fd].first][sock2servid[fd].second].status = Alive;
+  }
   char *buffer = new char[BUFFER_SIZE + 1];
   int bytes_read;
+
+
+
+  //  main loop process command
   while (should_terminate()) {
     bytes_read = read(fd, buffer, BUFFER_SIZE);
     if (bytes_read <= 0) {
@@ -79,6 +101,12 @@ int my_handler(int fd) {
       process_command(buff_str, fd);
     }
   }
+
+
+
+
+
+
   delete[] buffer;
   return 1;
 }

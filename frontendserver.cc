@@ -20,13 +20,6 @@
 
 using namespace std;
 
-//bool VERBOSE = false;
-//bool shutdownFlag;
-//set<int> socks;
-
-int backendSock = -1;
-int loadbalancerSock = -1;
-//pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
 set<pthread_t> webThreads;
 set<pthread_t> controlThreads;
 set<int> socks;
@@ -138,13 +131,55 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 }
 
 /*
+ * Asks master node for new backend server.
+ */
+int fetchNewBackendSock(int masterSock) {
+	//Gimme new backend
+	unsigned short int config_pair[2] = {0,0};
+	int i = write(masterSock, &config_pair, sizeof(config_pair));
+	//read() error
+	if (i < -1)
+		die("write() fail to masterSock", false);
+	//client closed connection
+	if (i == 0)
+		die("masterSock closed", false);
+
+	//Backend gimme'd
+	struct sockaddr_in newAddr;
+	i = read(masterSock, &newAddr, sizeof(newAddr));
+	//read() error
+	if (i < -1)
+		die("read() fail to masterSock", false);
+	//client closed connection
+	if (i == 0)
+		die("masterSock closed", false);
+
+	//Create new backend sock
+	int backendSock = socket(AF_INET, SOCK_STREAM, 0);
+	if (backendSock < 0)
+		die("socket() failed", -1);
+
+	//Reusable
+	int enable = 1;
+	if (setsockopt(backendSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+		die("setsockopt(SO_REUSEADDR) failed", false);
+	if (setsockopt(backendSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
+		die("setsockopt(SO_REUSEPORT) failed", false);
+
+	//Connect
+	if (connect(backendSock, (struct sockaddr*)&newAddr, sizeof(newAddr)) < 0)
+		die("connect failed", false);
+	return backendSock;
+}
+
+
+/*
  * Callback from main thread upon initialization of worker thread.
  * Initializes a SingleConnServerHTML
  */
 void *webThreadFunc(void *args){
 	struct web_thread_struct *a = (struct web_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
-//	int backendSock = (intptr_t)(a->backendSock);
 	string webroot = (string)(a->webroot);
 	CookieRelay *CR = (CookieRelay *)(a->CR);
 	BackendRelay *BR = (BackendRelay *)(a->BR);
@@ -173,15 +208,12 @@ void *controlThreadFunc(void *args){
 
 /*
  * Run command:
- * $ ./cloud 1 -v
+ * $ ./fes 1 -v
  */
 int main(int argc, char *argv[])
 {
 
 	int c;
-//	int N = 0;
-//	int webPort = 8000;
-//	string webroot = "localhost";
 
 	//signal handling
 	struct sigaction action;
@@ -225,18 +257,20 @@ int main(int argc, char *argv[])
 	int webSock = createServerSocket(webPort);
 	//Control socket for load balancer
 	int controlSock = createServerSocket(controlPort);
-	//Client socket for backend
-	backendSock = createClientSocket(BACKEND_PORT);
+	//Client socket for master
+	int masterSock = createClientSocket(MASTER_PORT);
 	if (VERBOSE)
-		fprintf(stderr, "S: connected to [%d] (B)!\n", backendSock);
-	// unsigned short int config_pair[2] = {0,0};
-	// write(backendSock, &config_pair, sizeof(config_pair));
+		fprintf(stderr, "S: connected to [%d]! (M)\n", masterSock);
+	//Client socket for backend
+	int backendSock = fetchNewBackendSock(masterSock);
+	if (VERBOSE)
+		fprintf(stderr, "S: connected to [%d]! (B)\n", masterSock);
 	//Manually signal when load balancer is ready
 	pauseBeforeConnect();
 	//Client socket for load balancer (for cookies??)
-	loadbalancerSock = createClientSocket(COOKIE_PORT);
+	int loadbalancerSock = createClientSocket(COOKIE_PORT);
 	if (VERBOSE)
-		fprintf(stderr, "S: connected to [%d] (LB)!\n", loadbalancerSock);
+		fprintf(stderr, "S: connected to [%d]! (LB)\n", loadbalancerSock);
 
 	//Clear welcome message from backend socket
 	char buff[BUFF_SIZE];

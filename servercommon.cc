@@ -64,7 +64,6 @@ string readClient(int clntSock, bool *b_break) {
 	int i = read(clntSock, c_requestLine, sizeof(c_requestLine));
 	//read() error
 	if (i < -1)
-//		sendStatus(400);
 		die("read in loadbalancer", false);
 	//client closed connection
 	if (i == 0) {
