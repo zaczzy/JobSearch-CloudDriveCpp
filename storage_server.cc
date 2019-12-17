@@ -418,6 +418,7 @@ void* read_admin_commands(int client_fd)
             //}
         }
     }
+    return NULL; // zac inserted
 }
 
 

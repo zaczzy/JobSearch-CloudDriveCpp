@@ -52,7 +52,7 @@ int webserver_core(int mailOpt, char *user, int email_id, char *mail_msg, char *
   // char recv_msg[1000];
 //Invokes backend to enquire about user
   if(user == NULL) {
-    printf("Invalid user\n");
+    printf("Invalid user %d\n", valid); // zac random prints
     return FAILURE;
   }
 

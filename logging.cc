@@ -220,6 +220,7 @@ int add_log_entry(op_type type, void* data)
     }
 
 #endif
+    return 0; // zac added
 }
 
 int replay_log()
@@ -364,4 +365,5 @@ int replay_log()
 
     ifs.close();
 #endif
+    return 0; // zac added
 }
