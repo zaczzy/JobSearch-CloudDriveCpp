@@ -229,8 +229,8 @@ int main(int argc, char *argv[])
 	backendSock = createClientSocket(BACKEND_PORT);
 	if (VERBOSE)
 		fprintf(stderr, "S: connected to [%d] (B)!\n", backendSock);
-	unsigned short int config_pair[2] = {0,0};
-	write(backendSock, &config_pair, sizeof(config_pair));
+	// unsigned short int config_pair[2] = {0,0};
+	// write(backendSock, &config_pair, sizeof(config_pair));
 	//Manually signal when load balancer is ready
 	pauseBeforeConnect();
 	//Client socket for load balancer (for cookies??)

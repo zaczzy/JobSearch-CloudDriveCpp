@@ -969,6 +969,8 @@ int get_folder_content(get_folder_content_request* request, int fd, char** respo
 {
     char* row = request->username;
 
+    if (verbose)
+    printf("Getting folder contents for dir path  : %s and folder name : %s\n", request->directory_path, request->folder_name);
     /** Concatenate the path and name */
     char full_path[1024 + 256];
     sprintf(full_path, "%s/%s", request->directory_path, request->folder_name);
