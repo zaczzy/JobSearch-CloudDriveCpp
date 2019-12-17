@@ -1,6 +1,7 @@
 TARGETS = lb fes mailclient storage_server storage_server
 
 cloud:
+	make -f Makefile_ritika
 	make -f Makefile_fes
 	make -f Makefile_lb
 
