@@ -48,6 +48,9 @@ void request_file_names(std::vector<std::string>& filenames,
       BR->sendFolderRequest(&req, MAX_FOLDER_INFO_LENGTH);
   if (!response_line.compare("")) return;
   split(filenames, response_line, '~');
+  for (string& str: filenames) {
+    cout << "GOT NAME: <" << str << ">" << endl;
+  }
 }
 
 void generate_display_list(std::string& to_replace,
