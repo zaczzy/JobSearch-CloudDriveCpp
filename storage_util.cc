@@ -168,7 +168,7 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   data_start_inx = buff_str.find("\r\n\r\n", fname_end_inx) + 4;
   data_end_inx = buff_str.find("\r\n", data_start_inx);
   std::string data =
-      buff_str.substr(data_start_inx, data_end_inx - data_start_inx - 1);
+      buff_str.substr(data_start_inx, data_end_inx - data_start_inx);
   buff_str.clear();
   *total_body_read += data.size();
   // got username, got directory_path, start send

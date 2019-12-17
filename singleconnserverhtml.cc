@@ -261,12 +261,12 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
     vector<string> filenames;
-    cout << "WARNING <" << path << "> foldername<" << folder << ">" << endl; 
     request_file_names(filenames, path, username, folder, BR);
     string to_replace;
     generate_display_list(to_replace, URI, filenames);
     replace_all_occurrences(HTML, string("{{path}}"), URI);
     replace_first_occurrence(HTML, string("{{file_names}}"), to_replace);
+    cout << "path is: <" << path << "> foldername<" << folder << ">" << endl; 
     if (!path.compare("/r00t")) {
       path = "/storage.html";
     } else {
@@ -325,7 +325,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     }
     // verify the content_length is indeed the length we have read
     if (content_length != 0) {
-      if (total_body_read == content_length ^ should_read_next_part) {
+      if ((total_body_read == content_length) ^ should_read_next_part) {
         cerr << "HandlePOST: Content-Length is said to be " << content_length
              << " but the total length of " << upload_fname << " is actually "
              << total_body_read << endl;

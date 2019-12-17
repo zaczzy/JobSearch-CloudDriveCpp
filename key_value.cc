@@ -653,6 +653,9 @@ int get_file_data(get_file_request* request, int fd)
             }
             response.f_len = content->file_len;
             send_msg_to_socket((char*)(&response), sizeof(response), fd);
+
+            if (verbose)
+                printf("sent file : %s\n", full_path);
         }
     }
     else /** column doesn't exist */
@@ -932,7 +935,7 @@ int create_folder(create_folder_request* request)
 
         col.content = content; 
     /** Add the entry to the map */
-    itr->second.columns.insert(std::make_pair(std::string("/r00t"), col));
+    itr->second.columns.insert(std::make_pair(std::string(column), col));
 
 #if 0
         
@@ -955,7 +958,10 @@ int create_folder(create_folder_request* request)
             content->num_files++;
             fd_entry entry;
             entry.type = DIRECTORY_TYPE;
+
             strncpy(entry.name, request->folder_name, strlen(request->folder_name));
+            if (verbose)
+                printf("Added folder %s to its parent folder %s\n", entry.name, parent_itr->first.c_str());
             content->entry->push_back(entry);
         }
 
@@ -968,7 +974,7 @@ int create_folder(create_folder_request* request)
 int get_folder_content(get_folder_content_request* request, int fd, char** response_str)
 {
     char* row = request->username;
-
+    *response_str = NULL;
     if (verbose)
     printf("Getting folder contents for dir path  : %s and folder name : %s\n", request->directory_path, request->folder_name);
     /** Concatenate the path and name */
@@ -1008,8 +1014,12 @@ int get_folder_content(get_folder_content_request* request, int fd, char** respo
         if (verbose)
             printf("content entry vector size : %lu\n", content->entry->size());
             
+        if (verbose)
+            printf("contents of folder : %s with directory path : %s\n", request->folder_name, request->directory_path);
         for(auto it = content->entry->begin(); it != content->entry->end(); it++)
         {
+            if (verbose)
+                printf("%s\n", it->name);
             content_list += ((it->type == FILE_TYPE) ? 'F' : 'D') + std::string(it->name) + '~';
         }
         char* response;
@@ -1415,8 +1425,10 @@ bool process_command(char* command, int len, int fd)
         char* response;
         int res = get_folder_content(folder_request, fd, &response);
 
-        if (verbose)
+        if (verbose && response != NULL)
             printf("sending response to get folder content : %s\n", response);
+        else
+            printf("sending response to get folder content NULL\n");
         if (res == SUCCESS)
         {
             send_msg_to_socket(response, strlen(response), fd);
