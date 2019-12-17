@@ -126,21 +126,23 @@ void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
 
 bool upload_next_part(int* total_body_read, std::string& filename, int sock,
                       std::string& boundary, std::string& username,
-                      string& directory_path, BackendRelay* BR) {
-  char* buffer = new char[MAX_CHUNK_PLUS_SIZE + 1];
-  int buffer_size;
+                      string& directory_path, BackendRelay* BR, bool mac_cli, 
+                      char * body) {
   std::string buff_str;
-  while ((buffer_size = read(sock, buffer, MAX_CHUNK_PLUS_SIZE)) ==
-         MAX_CHUNK_PLUS_SIZE) {
+  if (!mac_cli) {
+    int buffer_size;
+    char* buffer = new char[MAX_CHUNK_PLUS_SIZE + 1];
+    while ((buffer_size = read(sock, buffer, MAX_CHUNK_PLUS_SIZE)) ==
+          MAX_CHUNK_PLUS_SIZE) {
+      buffer[buffer_size] = '\0';
+      buff_str += buffer;
+    }
     buffer[buffer_size] = '\0';
     buff_str += buffer;
+    delete[] buffer;
+  } else {
+    buff_str = body;
   }
-  buffer[buffer_size] = '\0';
-  buff_str += buffer;
-  delete[] buffer;
-
-  // DEBUG PRINT
-  cerr << "C: [" << buff_str << "]" << endl;
 
   // verify that boundary is at the end
   size_t begin_boundary = buff_str.rfind(boundary);

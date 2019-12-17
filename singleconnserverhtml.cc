@@ -277,11 +277,10 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     string URI = requestURI.substr(9);  // "/r00t/f1"
     string path, fname;                 // "/r00t", "f1"
     split_filename(URI, path, fname);
-    // chunk download start
     // check if file exists on the BR
     bool read_ready = request_file_download(username, path, fname, BR);
     if (!read_ready) {
-      cerr << "File not found on BR!" << endl;
+      cerr << "File not found on Backend!" << endl;
       sendStatus(404);
       return;
     }
@@ -292,7 +291,6 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
       sendFileHeaders(fname, f_len);
       sendMsg(chunk);
     } while (read_ready);
-    cout << "And im out" << endl;
     return;
   } else {
     // Resource not found
@@ -314,16 +312,19 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string URI = requestURI.substr(7);  // "/r00t/dir1" or "/r00t"
     boundary.insert(0, "--");
     bool should_read_next_part = true;
+    string body_str = body;
+    bool mac_cli = body_str.find(boundary) != string::npos;
+    body_str.clear();
     int total_body_read = 0;
     string upload_fname;
     while (should_read_next_part) {
       should_read_next_part = upload_next_part(
-          &total_body_read, upload_fname, sock, boundary, username, URI, BR);
+          &total_body_read, upload_fname, sock, boundary, username, URI, BR, mac_cli, body);
     }
     // verify the content_length is indeed the length we have read
     if (content_length != 0) {
       if ((total_body_read == content_length) ^ should_read_next_part) {
-        cerr << "HandlePOST: Content-Length is said to be " << content_length
+        cerr << "[WARN] HandlePOST: Content-Length is said to be " << content_length
              << " but the total length of " << upload_fname << " is actually "
              << total_body_read << endl;
       }
