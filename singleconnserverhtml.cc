@@ -266,7 +266,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     generate_display_list(to_replace, URI, filenames);
     replace_all_occurrences(HTML, string("{{path}}"), URI);
     replace_first_occurrence(HTML, string("{{file_names}}"), to_replace);
-    cout << "path is: <" << path << "> foldername<" << folder << ">" << endl; 
+    cout << "path is: <" << path << "> foldername<" << folder << ">" << endl;
     if (!path.compare("/r00t")) {
       path = "/storage.html";
     } else {
@@ -287,15 +287,12 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     }
     string chunk;
     size_t f_len;
-    // modify in-place
-    download_file_chunk(chunk, &read_ready, &f_len, BR);
-    sendFileHeaders(fname, f_len);
     do {
-      sendMsg(chunk);
       download_file_chunk(chunk, &read_ready, &f_len, BR);
+      sendFileHeaders(fname, f_len);
+      sendMsg(chunk);
     } while (read_ready);
-    // TODO: careful about the last chunk
-    sendMsg(chunk);
+    cout << "And im out" << endl;
     return;
   } else {
     // Resource not found

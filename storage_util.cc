@@ -121,6 +121,7 @@ void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
   }
   *f_len = resp.f_len;
   *read_ready = resp.has_more;
+  cout << "WARNING: DOWNLOAD HAS MORE? " << (int)*read_ready << endl; 
 }
 
 bool upload_next_part(int* total_body_read, std::string& filename, int sock,
