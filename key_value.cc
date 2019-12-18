@@ -957,8 +957,8 @@ int create_folder(create_folder_request* request)
             file_content* content = (file_content*)(parent_itr->second.content);
             content->num_files++;
             fd_entry entry;
+            memset(&entry, 0, sizeof(entry));
             entry.type = DIRECTORY_TYPE;
-
             strncpy(entry.name, request->folder_name, strlen(request->folder_name));
             if (verbose)
                 printf("Added folder %s to its parent folder %s\n", entry.name, parent_itr->first.c_str());
