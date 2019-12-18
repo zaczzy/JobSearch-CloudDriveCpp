@@ -249,14 +249,19 @@ void clear_tablet()
     tablet.clear();
 }
 
-void add_root_folder(map_tablet::iterator itr)
+int add_root_folder(map_tablet::iterator itr)
 {
     tablet_column col;
     col.type = DRIVE;
 
     /** Add the new folder */
     file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
-    // TODO: Check NULL
+    if (content == NULL)
+    {
+        if (verbose)
+            printf("Malloc faiiled for creating root folder\n");
+        return ERR_MALLOC_FAILED;
+    }
 
     if (verbose)
         printf("num cols: %lu\n", itr->second.columns.size());
@@ -273,6 +278,8 @@ void add_root_folder(map_tablet::iterator itr)
 
     if (verbose)
         printf("added root folder for the user\n");
+
+    return SUCCESS;
 }
 
 int add_user(char* username, char* password)
@@ -306,9 +313,9 @@ int add_user(char* username, char* password)
     itr = tablet.find(std::string(username));
         
     /** Add the root folder for this user */
-    add_root_folder(itr);
+    int res = add_root_folder(itr);
 
-    return SUCCESS;
+    return res;
 }
 
 int delete_user(char* username, char* password)
@@ -390,11 +397,29 @@ int store_email(put_mail_request* request)
     col.type = MAIL;
 
     mail_content* content = (mail_content*)malloc(sizeof(mail_content) * sizeof(char));
-    // TODO: Check NULL
+    if (content == NULL)
+    {
+        if (verbose)
+            printf("malloc failed for adding email\n");
+        return ERR_MALLOC_FAILED;
+    }
 
     content->email_body = (char*)malloc(request->email_len * sizeof(char));
+    if (content->email_body == NULL)
+    {
+        if (verbose)
+            printf("malloc failed for adding email\n");
+        return ERR_MALLOC_FAILED;
+    }
+
     content->header = (email_header*)malloc(sizeof(email_header) * sizeof(char));
-    // TODO: Check NULL
+    if (content->header == NULL)
+    {
+        if (verbose)
+            printf("malloc failed for adding email\n");
+        return ERR_MALLOC_FAILED;
+    }
+
     strncpy(content->email_body, request->email_body, request->email_len);
     *(content->header) = request->header;
     content->header->email_id = email_id;
@@ -466,8 +491,6 @@ int delete_mail(delete_mail_request* request)
 {
     char* row = request->username;
     unsigned long email_id = request->email_id;
-    // TODO: Remove
-    printf("delete email id %lu\n", email_id);
 
     map_tablet::iterator itr;
 
@@ -531,9 +554,7 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
         strncpy(response->prefix, request->prefix, strlen(request->prefix));
         strncpy(response->username, request->username, strlen(request->username));
         response->email_id = request->email_id;
-
    
-        // TODO: Check for index value greater than num_emails before using it
         strncpy(response->mail_body, content->email_body, content->body_len);
         response->mail_body_len = content->body_len;
 
@@ -766,10 +787,20 @@ bool store_file(put_file_request* request)
 
         /** Add the new file */
         file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
-        // TODO: Check NULL
+        if (content == NULL)
+        {
+            if (verbose)
+                printf("malloc failed for adding file\n");
+            return ERR_MALLOC_FAILED;
+        }
 
         char* data = (char*)malloc(request->chunk_len * sizeof(char));
-        // TODO: Check NULL
+        if (data == NULL)
+        {
+            if (verbose)
+                printf("malloc failed for adding file\n");
+            return ERR_MALLOC_FAILED;
+        }
         
         /** Read the data */
         strncpy(data, request->data, request->chunk_len);
@@ -925,7 +956,12 @@ int create_folder(create_folder_request* request)
         col.type = DRIVE;
 
         file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
-     // TODO: Check NULL
+        if (content == NULL)
+        {
+            if (verbose)
+                printf("malloc failed for adding folder\n");
+            return ERR_MALLOC_FAILED;
+        }
 
      if (verbose)
         printf("num cols: %lu\n", itr->second.columns.size());
@@ -1149,6 +1185,8 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "-ERR max user limit exceeded", strlen("-ERR max user limit exceeded"));
         else if (res == ERR_USER_ALREADY_EXISTS)
             strncpy(message, "-ERR user already exists", strlen("-ERR user already exists"));
+        else if (res == ERR_MALLOC_FAILED)
+            strncpy(message, "-ERR unable to add user - out of memory", strlen("-ERR unable to add user - out of memory"));
 
         message[strlen(message)] = '\0';
 
@@ -1245,6 +1283,9 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "+OK email stored", strlen("+OK email stored"));
         else if (res == ERR_USER_DOESNT_EXIST)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+        else if (res == ERR_MALLOC_FAILED)
+            strncpy(message, "-ERR add email failed - out of memory", strlen("-ERR add email failed - out of memory"));
+
 
         message[strlen(message)] = '\0';
 
@@ -1364,6 +1405,8 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "+OK file stored", strlen("+OK file stored"));
         else if (res == ERR_USER_DOESNT_EXIST)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+        else if (res == ERR_MALLOC_FAILED)
+            strncpy(message, "-ERR can't store file - out of memory", strlen("-ERR can't store file - out of memory"));
 
         message[strlen(message)] = '\0';
 
