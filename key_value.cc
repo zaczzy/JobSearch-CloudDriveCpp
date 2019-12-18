@@ -1209,7 +1209,8 @@ bool process_command(char* command, int len, int fd)
         /** Get the mail body */
         int res = get_mail_body(req, &response);
         
-        send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
+        if (fd != -1)
+            send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
         
        // if (res == SUCCESS)
        // {
@@ -1439,7 +1440,9 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
 
         message[strlen(message)] = '\0';
-        send_msg_to_socket(message, strlen(message), fd);
+
+        if (fd != -1)
+            send_msg_to_socket(message, strlen(message), fd);
         
         return SUCCESS;
     }

@@ -584,7 +584,7 @@ int main(int argc, char *argv[])
     sprintf(seq_no_file, "log_seq_no_%d.txt", myserver_id);
     sprintf(checkpoint_ver_file, "checkpoint_ver_no_%d.txt", myserver_id);
 //    replay_log(log_file);
-    ofs.open(log_file, std::fstream::app);
+    ofs.open(log_file, std::fstream::trunc);
 //    run_storage_server(ip_address, server_port_no);
 
 
