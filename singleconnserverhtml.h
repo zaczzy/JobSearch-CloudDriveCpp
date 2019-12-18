@@ -25,6 +25,7 @@ public:
 	void backbone();
 private:
 	string readHTMLFromFile(string fname);
+	string readFavicon(string favicon);
 	int sendMsg(string msg);
 	void sendStatus(int statusCode);
 	void sendHeaders(int length);
