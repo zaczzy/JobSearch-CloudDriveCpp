@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iostream>
 #include <set>
+#include <errno.h>
 //#include <sys/time.h>
 //#include <time.h>
 
@@ -122,7 +123,10 @@ int createClientSocket(unsigned short port) {
 	struct sockaddr_in servAddr;
 
 	if ((clntSock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        printf("socket failed : error %s\n", strerror(errno));
 		die("socket() failed", -1);
+    }
 
 	//Reusable
 	int enable = 1;
@@ -137,8 +141,12 @@ int createClientSocket(unsigned short port) {
 	servAddr.sin_port= htons(port);
 
 	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
-//		die("connect failed", clntSock);
+    {
+        printf("connect failed : error %s\n", strerror(errno));
 		return -1;
+
+    }
+//		die("connect failed", clntSock);
 	//removed 'clear welcome msg'
 	return clntSock;
 }
