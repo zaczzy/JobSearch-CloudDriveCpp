@@ -564,6 +564,13 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
     }
     else /** column doesn't exist */
     {
+        strncpy(response->prefix, request->prefix, strlen(request->prefix));
+        strncpy(response->username, request->username, strlen(request->username));
+        response->email_id = 0;
+   
+        strncpy(response->mail_body, content->email_body, content->body_len);
+        response->mail_body_len = 0;
+
         if (verbose)
             printf("no email with id %lu  exists\n", email_id);
         return ERR_INVALID_EMAILID;
@@ -626,7 +633,6 @@ int delete_file(delete_file_request* request)
     
 }
 
-#if 1
 int get_file_data(get_file_request* request, int fd)
 {
     char* row = request->username;
@@ -674,7 +680,8 @@ int get_file_data(get_file_request* request, int fd)
                 bytes_sent += content->file_len;
             }
             response.f_len = content->file_len;
-            send_msg_to_socket((char*)(&response), sizeof(response), fd);
+            if (fd != -1)
+                send_msg_to_socket((char*)(&response), sizeof(response), fd);
 
             if (verbose)
                 printf("sent file : %s\n", full_path);
@@ -689,56 +696,7 @@ int get_file_data(get_file_request* request, int fd)
     
    return SUCCESS; 
 }
-#else
-int get_file_data(get_file_metadata* request, int fd)
-{
-    get_file_metadata response;
-    char* row = request->username;
-    char* column = request->filename;
 
-    map_tablet::iterator itr;
-    
-    /** check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row with username %s exists\n", row);
-
-        return ERR_USER_DOESNT_EXIST;
-    }
-
-    /** check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
-    {
-        tablet_column* col = &(row_itr->second);
-        file_content* content = (file_content*)col->content;
-        
-        response.file_len = content->file_len;
-        strncpy(response.prefix, request->prefix, strlen(request->prefix));
-        strncpy(response.username, request->username, strlen(request->username));
-        strncpy(response.filename, request->filename, strlen(request->filename));
-
-        /** Send the metadata first */
-        send_msg_to_socket((char*)(&response), sizeof(response), fd);
-
-
-        /** Send the file content now */
-        // TODO: Send the file content in small chunks MAX_CHUNK_SIZE
-        send_msg_to_socket(content->file_data, content->file_len, fd);
-    }
-    else /** column doesn't exist */
-    {
-        if (verbose)
-            printf("no column with %s exists\n", column);
-        return ERR_FILE_DOESNT_EXIST;
-    }
-    
-   return SUCCESS; 
-}
-#endif
-
-#if 1
 bool store_file(put_file_request* request)
 {
     char* row = request->username;
@@ -834,67 +792,6 @@ bool store_file(put_file_request* request)
     }
     return SUCCESS;
 }
-#else
-bool store_file(put_file_request* request, int fd)
-{
-    char* row = request->username;
-
-    /** Concatenate the path and name */
-    char full_path[1024 + 256];
-    snprintf(full_path, "%s/%s", request->directory_path, request->filename);
-
-    char* column = full_path;
-
-    map_tablet::iterator itr;
-    
-    /** Check if the row exists */
-    if ((itr = tablet.find(std::string(row))) == tablet.end())
-    {
-        if (verbose)
-            printf("no row with username %s exists\n", row);
-
-        return ERR_USER_DOESNT_EXIST;
-    }
-
-    /** Check if this column exists */
-    map_tablet_row:: iterator row_itr; 
-    if ((row_itr = itr->second.columns.find(std::string(column))) != itr->second.columns.end())
-    {
-        // TODO: Append to this file to change existing file later
-    }
-    else /** Create a column with the given email ID */
-    {
-        /** Add the new column to this row */
-        tablet_column col;
-        col.type = MAIL;
-
-        /** Add the new file */
-        file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
-        // TODO: Check NULL
-
-        char* data = (char*)malloc(request->file_len * sizeof(char));
-        // TODO: Check NULL
-        
-        /** Read the data */
-        unsigned int len_read = 0;
-        while (len_read != request->file_len)
-        {
-            len_read += read(fd, data + len_read, request->file_len - len_read);
-        }
-
-        content->file_len = request->file_len;
-        content->file_data = data;
-
-        col.content = content; 
-        /** Add the entry to the map */
-        itr->second.columns.insert(std::make_pair(std::string(column), col));
-
-        if (verbose)
-            printf("Added column %s to row %s\n", column, row);
-    }
-    return SUCCESS;
-}
-#endif
 
 bool change_password(char* username, char* old_password, char* new_password)
 {
@@ -974,36 +871,23 @@ int create_folder(create_folder_request* request)
     /** Add the entry to the map */
     itr->second.columns.insert(std::make_pair(std::string(column), col));
 
-#if 0
-        
-
-        /** Add the new folder */
-        file_content* content = (file_content*)malloc(sizeof(file_content) * sizeof(char));
-        // TODO: Check NULL
-
-        content->num_files = 0;
-
-        col.content = content; 
-        /** Add the entry to the map */
-        itr->second.columns.insert(std::make_pair(std::string(column), col));
-#endif
-        /** Add this folder to its parent's list */
-        map_tablet_row:: iterator parent_itr; 
-        if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
-        {
-            file_content* content = (file_content*)(parent_itr->second.content);
-            content->num_files++;
-            fd_entry entry;
-            memset(&entry, 0, sizeof(entry));
-            entry.type = DIRECTORY_TYPE;
-            strncpy(entry.name, request->folder_name, strlen(request->folder_name));
-            if (verbose)
-                printf("Added folder %s to its parent folder %s\n", entry.name, parent_itr->first.c_str());
-            content->entry->push_back(entry);
-        }
-
+    /** Add this folder to its parent's list */
+    map_tablet_row:: iterator parent_itr; 
+    if ((parent_itr = itr->second.columns.find(std::string(request->directory_path))) != itr->second.columns.end())
+    {
+        file_content* content = (file_content*)(parent_itr->second.content);
+        content->num_files++;
+        fd_entry entry;
+        memset(&entry, 0, sizeof(entry));
+        entry.type = DIRECTORY_TYPE;
+        strncpy(entry.name, request->folder_name, strlen(request->folder_name));
         if (verbose)
-            printf("Added column %s to row %s\n", column, row);
+            printf("Added folder %s to its parent folder %s\n", entry.name, parent_itr->first.c_str());
+        content->entry->push_back(entry);
+    }
+
+    if (verbose)
+        printf("Added column %s to row %s\n", column, row);
     }
     return SUCCESS;
 }
@@ -1154,17 +1038,6 @@ int delete_folder(delete_folder_content_request* request)
 bool process_command(char* command, int len, int fd)
 {
     char message[64] = {0};
-
-    //printf("command: %s len: %d\n", command, len);
-
-    //char* command = strtok(buffer, " ");
-
-    //if (command == NULL)
-    //{
-    //    if (verbose)
-    //        printf("command is NULL\n");
-    //    return SUCCESS;
-    //}
 
     /** add user command */
     if (strncmp(command, "add", strlen("add")) == 0 || strncmp(command, "ADD", strlen("ADD")) == 0)
@@ -1338,22 +1211,24 @@ bool process_command(char* command, int len, int fd)
         /** Get the mail body */
         int res = get_mail_body(req, &response);
         
-        if (res == SUCCESS)
-        {
-          if(fd != -1)
-            send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
-        }
-        else
-        {
-            if (res == ERR_INVALID_EMAILID)
-                strncpy(message, "-ERR invalid email ID", strlen("-ERR invalid email ID"));
-            else if (res == ERR_USER_DOESNT_EXIST)
-                strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-            
-            message[strlen(message)] = '\0';
-            if(fd != -1)
-            send_msg_to_socket(message, strlen(message), fd);
-        }
+        send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
+        
+       // if (res == SUCCESS)
+       // {
+       //   if(fd != -1)
+       //     send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
+       // }
+       // else
+       // {
+       //     if (res == ERR_INVALID_EMAILID)
+       //         strncpy(message, "-ERR invalid email ID", strlen("-ERR invalid email ID"));
+       //     else if (res == ERR_USER_DOESNT_EXIST)
+       //         strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+       //     
+       //     message[strlen(message)] = '\0';
+       //     if(fd != -1)
+       //     send_msg_to_socket(message, strlen(message), fd);
+       // }
 
         return SUCCESS;
 
@@ -1570,48 +1445,6 @@ bool process_command(char* command, int len, int fd)
         
         return SUCCESS;
     }
-#if 0
-    /** put file command */
-    else if (strncmp(command, "putfile", 7) == 0 || strncmp(command, "PUTFILE", 7) == 0)
-    {
-        put_file_request* file_request = (put_file_request*)command;
-
-
-        /** Store the new file */
-        int res = store_file(file_request, fd);
-        
-        if (res == SUCCESS)
-            strncpy(message, "+OK file stored", strlen("+OK file stored"));
-        else if (res == ERR_USER_DOESNT_EXIST)
-            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-
-        message[strlen(message)] = '\0';
-
-        send_msg_to_socket(message, strlen(message), fd);
-            
-        return SUCCESS;
-    }
-    /** get file command */
-    else if (strncmp(command, "getfile", 7) == 0 || strncmp(command, "GETFILE", 7) == 0)
-    {
-        get_file_metadata* file_request = (get_file_metadata*)command;
-
-        /** Get file data */
-        int res = get_file_data(file_request, fd);
-
-
-        if (res == ERR_FILE_DOESNT_EXIST)
-            strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
-        else if (res == ERR_USER_DOESNT_EXIST)
-            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
-
-
-        message[strlen(message)] = '\0';
-        send_msg_to_socket(message, strlen(message), fd);
-        
-        return SUCCESS;
-    }
-#endif
     else
     {
         if (verbose)
