@@ -567,8 +567,6 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
         strncpy(response->prefix, request->prefix, strlen(request->prefix));
         strncpy(response->username, request->username, strlen(request->username));
         response->email_id = 0;
-   
-        strncpy(response->mail_body, content->email_body, content->body_len);
         response->mail_body_len = 0;
 
         if (verbose)
