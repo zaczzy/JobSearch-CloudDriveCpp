@@ -256,7 +256,9 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     replace_first_occurrence(HTML, string("{{parent_href}}"), "/storage.html");
   } else if (!requestURI.substr(0, 3).compare("/ls")) {
     string URI = requestURI.substr(3);  // "/r00t/dir1"
-    string path, folder;                // "/r00t", "dir1"
+    string path, folder;                // "/r00t", "/you%20think"
+    // replace_all_occurrences(folder, "%20", " "); //TODO: fix
+    cout << "You can do it later: " << folder << endl;
     split_filename(URI, path, folder);
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
@@ -292,7 +294,47 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
       sendMsg(chunk);
     } while (read_ready);
     return;
-  } else {
+  } else if (requestURI.find("/rmfolder") == 0) {
+    string folder_path = requestURI.substr(9);
+    string path, folder;
+    split_filename(folder_path, path, folder);
+    delete_folder_content_request req;
+    memset(&req, 0, sizeof(req));
+    strcpy(req.directory_path, path.c_str());
+    strcpy(req.folder_name, folder.c_str());
+    strcpy(req.username, username.c_str());
+    strcpy(req.prefix, "delfolder");
+    if (!BR->removeFolderRequest(&req)) {
+      cerr << "POST /rmfolder failure!" << endl;
+    }
+    if (path.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + path;
+    }
+    handleGET();
+    return;
+  } else if (requestURI.find("/rmfile") == 0) {
+    string file_path = requestURI.substr(7);
+    string path, fname;
+    split_filename(file_path, path, fname);
+    delete_file_request req;
+    memset(&req, 0, sizeof(req));
+    strcpy(req.prefix, "delfile");
+    strcpy(req.username, username.c_str());
+    strcpy(req.directory_path, path.c_str());
+    strcpy(req.filename, fname.c_str());
+    if (!BR->removeFileRequest(&req)) {
+      cerr << "POST /rmfile failure!" << endl;
+    }
+    if (path.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + path;
+    }
+    handleGET();
+    return;
+  }else {
     // Resource not found
     sendStatus(404);
     return;
@@ -329,7 +371,11 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
              << total_body_read << endl;
       }
     }
-    requestURI = "/storage.html";
+    if (URI.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + URI;
+    }
     cout << "username: " << username << endl;
     handleGET();
     return;
@@ -337,6 +383,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string current_path = requestURI.substr(10);
     string newfdr_name = body;
     newfdr_name = newfdr_name.substr(newfdr_name.find("newfdr_name=") + 12);
+    replace_all_occurrences(newfdr_name, "+", " ");
     create_folder_request req;
     memset(&req, 0, sizeof(req));
     strcpy(req.directory_path, current_path.c_str());
@@ -346,23 +393,11 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     if (!BR->createFolderRequest(&req)) {
       cerr << "POST /addfolder failure!" << endl;
     }
-    requestURI = "/storage.html";
-    handleGET();
-    return;
-  } else if (requestURI.find("/rmfolder") == 0) {
-    string folder_path = requestURI.substr(9);
-    string path, folder;
-    split_filename(folder_path, path, folder);
-    delete_folder_content_request req;
-    memset(&req, 0, sizeof(req));
-    strcpy(req.directory_path, path.c_str());
-    strcpy(req.folder_name, folder.c_str());
-    strcpy(req.username, username.c_str());
-    strcpy(req.prefix, "delfolder");
-    if (!BR->removeFolderRequest(&req)) {
-      cerr << "POST /rmfolder failure!" << endl;
+    if (current_path.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + current_path;
     }
-    requestURI = "/storage.html";
     handleGET();
     return;
   }
@@ -471,7 +506,6 @@ void SingleConnServerHTML::splitHeaderBody(string input,
   // deal with body
   unsigned int i_endheaders = input.find("\r\n\r\n");
   *body = input.substr(i_endheaders + strlen("\r\n\r\n"));
-
   // deal with headers (leave an \r\n for easier iteration below)
   string headers = input.substr(0, i_endheaders + 2);
   unsigned int i_endline;

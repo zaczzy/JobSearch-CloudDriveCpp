@@ -61,15 +61,15 @@ void generate_display_list(std::string& to_replace,
     string real_fname = item.substr(1);
     if (item_type == 'D') {
       to_replace += "<div><a href=\"/ls" + current_path + "/" + real_fname +
-                    "\">View directory " + real_fname + "</a></div>" +
-                    "<form action=\"/rmfolder" + current_path + "/" +
+                    "\">View Directory " + real_fname + "</a>" +
+                    "&nbsp;&nbsp;<a href=\"/rmfolder" + current_path + "/" +
                     real_fname +
-                    "\" method=\"post\"><div><input type =\"submit\" "
-                    "value=\"Remove Folder\"></div></form>";
+                    "\">Remove Folder</a></div>";
     } else if (item_type == 'F') {
       to_replace += "<div><a href=\"/download" + current_path + "/" +
-                    real_fname + "\">Download file " + real_fname +
-                    "</a></div>";
+                    real_fname + "\">Download File " + real_fname +
+                    "</a>&nbsp;&nbsp;<a href=\"/rmfile" + current_path + "/" +
+                    real_fname + "\">Remove File</a></div>";
     }
   }
   if (filenames.size() == 0) {
