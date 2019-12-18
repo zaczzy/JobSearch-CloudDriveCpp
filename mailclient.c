@@ -21,13 +21,14 @@ int remote_port;
 int is_exit = 0;
 int state = 0;
 char *server_ip;
-struct sockaddr_in sin;
+struct sockaddr_in sin_mail;
 socklen_t sin_length = sizeof(struct sockaddr_in);
 char log_message[100];
 int log_to_terminal = 0;
 FILE *log_file = NULL;
 char *user = "michal";
 char email_msg[1000];
+char subject[20] = "Subject";
 char rcpt_to[100];
 int msg_len = 0;
 int email_index = 0;
@@ -48,7 +49,7 @@ void server_recv_callback(char *recv_buf, int server_fd) {
  
     memset(recv_buf, 0, RECV_BUF_SIZE);
 
-    int received = recvfrom(server_fd, recv_buf, RECV_BUF_SIZE, MSG_DONTWAIT, (struct sockaddr *)&sin, &sin_length);
+    int received = recvfrom(server_fd, recv_buf, RECV_BUF_SIZE, MSG_DONTWAIT, (struct sockaddr *)&sin_mail, &sin_length);
 
     if ( received > 0) {
 #ifdef DEBUG
@@ -99,7 +100,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
            printf("250 OK\n");
            char response[1000];
            get_mail_response resp;
-           webserver_core(0, user, -1, NULL, NULL, response, server_fd, &resp);
+           webserver_core(0, user, -1, NULL, NULL, subject, response, server_fd, &resp);
            memset(&resp, 0, sizeof(get_mail_response));
            memset(response, 0, sizeof(response));
            state = 0;
@@ -118,7 +119,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               char response[1000];
   
               printf("250 OK\n");
-              webserver_core(1, user, email_index, NULL, NULL, response, server_fd, NULL);
+              webserver_core(1, user, email_index, NULL, NULL, subject, response, server_fd, NULL);
               memset(response, 0, sizeof(response));
               email_index = 0 ;
               state = 0;
@@ -137,7 +138,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
               email_index = atoi(cmd1); 
               char response[1000];
               printf("250 OK\n");
-              webserver_core(3, user, email_index, NULL, NULL, response, server_fd, NULL);
+              webserver_core(3, user, email_index, NULL, NULL, subject, response, server_fd, NULL);
               memset(response, 0, sizeof(response));
               email_index = 0 ;
               state = 0;
@@ -196,7 +197,7 @@ void terminal_recv_callback(char *lineptr, int server_fd) {
             printf("250 OK DATA");
             email_msg[msg_len] = '\0';
             char response[1000];
-            webserver_core(2, user, -1, email_msg, rcpt_to, response, server_fd, NULL);  
+            webserver_core(2, user, -1, email_msg, rcpt_to, subject,response, server_fd, NULL);  
             printf("%s\n", email_msg);
             memset(email_msg, 0, sizeof(email_msg));
             memset(rcpt_to, 0, sizeof(rcpt_to));
@@ -245,15 +246,15 @@ int socket_create() {
 //Socket connect to name space
 int sock_connect(int fd){ 
     int ret;
-    sin.sin_family  = AF_INET;
-    sin.sin_port = htons(remote_port);
+    sin_mail.sin_family  = AF_INET;
+    sin_mail.sin_port = htons(remote_port);
     if(server_ip == NULL) {
       printf("server_ip illegal value\n");
       exit(-1);
     }
-    sin.sin_addr.s_addr = inet_addr(server_ip);
+    sin_mail.sin_addr.s_addr = inet_addr(server_ip);
        
-    ret = connect(fd, (struct sockaddr *)&sin, sin_length);
+    ret = connect(fd, (struct sockaddr *)&sin_mail, sin_length);
     if (ret < 0) {
     	perror("connect on server_fd failed \n");
     	return -1;
