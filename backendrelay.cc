@@ -102,7 +102,17 @@ bool BackendRelay::removeFolderRequest(
   char* confirm = new char[1024];
   int rlen = read(masterSock, confirm, 1024);
   confirm[rlen] = '\0';
-  printf("confirm: %s\n", confirm);
+  printf("rm folder confirm: %s\n", confirm);
+  // bool retval = strncmp(confirm, "+OK", 3) == 0;
+  delete[] confirm;
+  return true;
+}
+bool BackendRelay::removeFileRequest(const delete_file_request* req) {
+  write(masterSock, req, sizeof(*req));
+  char* confirm = new char[1024];
+  int rlen = read(masterSock, confirm, 1024);
+  confirm[rlen] = '\0';
+  printf("rm file confirm: %s\n", confirm);
   // bool retval = strncmp(confirm, "+OK", 3) == 0;
   delete[] confirm;
   return true;
