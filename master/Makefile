@@ -16,7 +16,7 @@ all: master_server test_client
 master_server: master_server.cc util.o thread_pool.o master_processor.o master_thread_handler.o server_config_store.o md5.o
 	$(CC) $^ -lpthread -lssl -lcrypto -o $@ 
 
-test_client: client/client.cc
+test_client: client.cc
 	$(CC) $^ -o $@
 
 .PHONY: clean

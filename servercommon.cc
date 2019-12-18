@@ -136,7 +136,6 @@ int createClientSocket(unsigned short port) {
 	servAddr.sin_port= htons(port);
 
 	if (connect(clntSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
-//		die("connect failed", clntSock);
 		return -1;
 	//removed 'clear welcome msg'
 	return clntSock;

@@ -16,9 +16,10 @@
 #include "server_config_store.h"
 #include "thread_pool.h"
 #include "util.h"
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 2048
 using namespace std;
 void write_sock(int fd, const struct server_netconfig *server_config) {
+	cout << "Writing to fes" << endl;
   unsigned int wlen = sizeof(server_config->serv_addr), bytes_w = 0;
   do {
     unsigned int bytes_wt =
@@ -29,6 +30,8 @@ void write_sock(int fd, const struct server_netconfig *server_config) {
       bytes_w += bytes_wt;
     }
   } while (bytes_w < wlen);
+//	write(fd, &(server_config->serv_addr), sizeof(server_config->serv_addr));
+//	cout << "Done" << endl;
 }
 void write_primary(int fd, int primary_id) {
 	write(fd, &primary_id, sizeof(int));
@@ -56,7 +59,7 @@ static bool is_request_for_primary(string &req) {
 }
 int my_handler(int fd) {
   unsigned short id_stuff[2];
-  memset(id_stuff, -1, sizeof(id_stuff));
+  memset(id_stuff, 218, sizeof(id_stuff));
   read(fd, &id_stuff, sizeof(id_stuff));
 
   cout << "Received [" << id_stuff[0] << " " << id_stuff[1] << "]" << endl;
@@ -76,7 +79,7 @@ int my_handler(int fd) {
 
 
   //  main loop process command
-  while (should_terminate()) {
+  while (!should_terminate()) {
     bytes_read = read(fd, buffer, BUFFER_SIZE);
     if (bytes_read <= 0) {
       // ending connection
@@ -91,7 +94,7 @@ int my_handler(int fd) {
       return 0;
     }
     // null terminal and create string instead
-    buffer[bytes_read] = 0;
+    buffer[bytes_read] = '\0';
     string buff_str = buffer;
     // process buffer
     if (is_request_for_primary(buff_str)) {
@@ -101,11 +104,6 @@ int my_handler(int fd) {
       process_command(buff_str, fd);
     }
   }
-
-
-
-
-
 
   delete[] buffer;
   return 1;

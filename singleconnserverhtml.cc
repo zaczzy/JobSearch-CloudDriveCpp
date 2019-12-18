@@ -378,7 +378,10 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     char *c_adduser = strtok(NULL, delim);
     string user = c_user + strlen("user=");
     string pass = c_pass + strlen("pass=");
-    //		cout << "\n===" << user << "," << pass << "===\n" << endl;
+
+    pthread_mutex_lock(&(BR->mutex_sock));
+    BR->setNewBackendSock(user);
+    pthread_mutex_unlock(&(BR->mutex_sock));
 
     // Add new user
     if (c_adduser != NULL && strlen(c_adduser) > 0) {
@@ -406,8 +409,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     if (authResult.substr(0, 3).compare("+OK") != 0) {
       //		//hardcoded user/pass:
       //		if (user.compare("michal") != 0 || pass.compare("p") !=
-      // 0) { redirect to login page
-      // TODO: add message stating invalid credentials
+      // 0) {
       string HTML = generateLogin("<i>invalid credentials</i>");
       sendHeaders(HTML.length());
       sendMsg(HTML);
@@ -562,8 +564,7 @@ void SingleConnServerHTML::backbone() {
     // existing cookie, new connection
     else if (receivedCookie != -1 && cookieValue == -1) {
       // cout << "(B)" << endl;
-      // login automatically: will only work when cookie server is separate from
-      // singleconnserverhtml for now, just proceed (manual login)
+      // login automatically
       pthread_mutex_lock(&(CR->mutex_sock));
       string response = CR->fetchBrowser(receivedCookie);
       pthread_mutex_unlock(&(CR->mutex_sock));

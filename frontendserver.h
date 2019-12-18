@@ -6,7 +6,7 @@
 void cleanup();
 //void die(string msg, bool isThread = true);
 void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort, string *controlIP, int *controlPort);
-int fetchNewBackendSock(int masterSock);
+int fetchNewBackendSock(int masterSock, string username);
 string sendCommand(string command);
 void *webThreadFunc(void *args);
 void *controlThreadFunc(void *args);

@@ -133,43 +133,7 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 /*
  * Asks master node for new backend server.
  */
-int fetchNewBackendSock(int masterSock) {
-	//Gimme new backend
-	unsigned short int config_pair[2] = {0,0};
-	int i = write(masterSock, &config_pair, sizeof(config_pair));
-	//read() error
-	if (i < -1)
-		die("write() fail to masterSock", false);
-	//client closed connection
-	if (i == 0)
-		die("masterSock closed", false);
-
-	//Backend gimme'd
-	struct sockaddr_in newAddr;
-	i = read(masterSock, &newAddr, sizeof(newAddr));
-	//read() error
-	if (i < -1)
-		die("read() fail to masterSock", false);
-	//client closed connection
-	if (i == 0)
-		die("masterSock closed", false);
-
-	//Create new backend sock
-	int backendSock = socket(AF_INET, SOCK_STREAM, 0);
-	if (backendSock < 0)
-		die("socket() failed", -1);
-
-	//Reusable
-	int enable = 1;
-	if (setsockopt(backendSock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-		die("setsockopt(SO_REUSEADDR) failed", false);
-	if (setsockopt(backendSock, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(int)) < 0)
-		die("setsockopt(SO_REUSEPORT) failed", false);
-
-	//Connect
-	if (connect(backendSock, (struct sockaddr*)&newAddr, sizeof(newAddr)) < 0)
-		die("connect failed", false);
-	return backendSock;
+int fetchNewBackendSock(int masterSock, string username) {
 }
 
 
@@ -261,10 +225,6 @@ int main(int argc, char *argv[])
 	int masterSock = createClientSocket(MASTER_PORT);
 	if (VERBOSE)
 		fprintf(stderr, "S: connected to [%d]! (M)\n", masterSock);
-	//Client socket for backend
-	int backendSock = fetchNewBackendSock(masterSock);
-	if (VERBOSE)
-		fprintf(stderr, "S: connected to [%d]! (B)\n", masterSock);
 	//Manually signal when load balancer is ready
 	pauseBeforeConnect();
 	//Client socket for load balancer (for cookies??)
@@ -272,20 +232,13 @@ int main(int argc, char *argv[])
 	if (VERBOSE)
 		fprintf(stderr, "S: connected to [%d]! (LB)\n", loadbalancerSock);
 
-	//Clear welcome message from backend socket
-	char buff[BUFF_SIZE];
-	memset(buff, 0, sizeof(buff));
-	read(backendSock, buff, sizeof(buff));
-	if (VERBOSE)
-		fprintf(stderr, "%s\n", buff);
-
 	socks.insert(webSock);
 	socks.insert(controlSock);
-	socks.insert(backendSock);
+//	socks.insert(backendSock);
 	socks.insert(loadbalancerSock);
 
 	//Relay messages through backend
-	BackendRelay BR(backendSock);
+	BackendRelay BR(masterSock);
 	//Relay cookies with load balancer
 	CookieRelay CR(loadbalancerSock);
 	while (true) {

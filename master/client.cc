@@ -41,25 +41,24 @@ int main(int argc, char const *argv[])
         printf("\nConnection Failed \n"); 
         return -1; 
     }
-//    identify as backend
+    //    identify as backend
     int blah1 = stoi(argv[2]);
     int blah2 = stoi(argv[3]);
     unsigned short blah[2];
     blah[0] = (unsigned short) blah1;
     blah[1] = (unsigned short) blah2;
     write(sock, blah, sizeof(blah));
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+    //test real request
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     write(sock , request , strlen(request));
     printf("Primary inquiry sent\n"); 
-    struct sockaddr_in result;
-    valread = read(sock, &result, 1024);
-    if (valread != (int) sizeof(result)) {
-        fprintf(stderr, "Result size incorrect!\n");
-        return -1;
-    }
-    printf("IP: %s\n", inet_ntoa(result.sin_addr));
-    printf("PORT: %hd\n", ntohs(result.sin_port));
+    int result;
+    valread = read(sock, &result, sizeof(result));
     close(sock);
+
+    //ROUND 2
+
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
     { 
         printf("\n Socket creation error \n"); 
@@ -70,17 +69,15 @@ int main(int argc, char const *argv[])
         printf("\nConnection Failed \n"); 
         return -1; 
     } 
-    // again
-    request = "00primary"; // SECOND request
+
+    //    identify as backend (again)
+    write(sock, blah, sizeof(blah));
+
+    //test real request (again)
+    request = "02primary"; // SECOND request
     send(sock , request , strlen(request) , 0 ); 
     printf("Primary inquiry sent\n"); 
     valread = read(sock, &result, 1024);
-    if (valread != (int) sizeof(result)) {
-        fprintf(stderr, "Result size incorrect!\n");
-        return -1;
-    }
-    printf("IP: %s\n", inet_ntoa(result.sin_addr));
-    printf("PORT: %hd\n", ntohs(result.sin_port));
     close(sock);
     return 0; 
 } 

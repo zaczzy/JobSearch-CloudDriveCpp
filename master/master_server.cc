@@ -9,7 +9,7 @@
 #define SEAS_LOGIN "zhaozeyu"
 #define FULL_NAME "Zeyu Zhao"
 #define QUEUE_LENGTH 50
-#define NUM_THREADS 3
+#define NUM_THREADS 10
 using namespace std;
 
 void sig_handler(int signo) {
