@@ -1,5 +1,8 @@
 #ifndef DATA_TYPES_H
 #define DATA_TYPES_H
+
+#include <cstdint>
+#include <cstring>
 #include <vector>
 
 #define SERIALIZE
@@ -25,6 +28,7 @@
 #define MAX_LEN_EMAIL_BODY 256  // Will change this later
 #define CHUNK_SIZE 2048         // WIll change this later
 #define MAX_EMAILS 10           // WIll change this later
+#define GOSSIP_OFFSET 7000
 
 #define LOG_SEQ_NO_FILE "log_seq_no.txt"
 #define CHECKPOINT_VERSION_FILE "checkpoint_version.txt"
@@ -178,10 +182,23 @@ typedef struct {
 } get_mail_body_response;
 
 #pragma pack(1)
-typedef struct {
-  char prefix[8];  // Should be "delmail"
-  char username[32];
-  unsigned long email_id;
+typedef struct
+{
+  int primaryId;
+  int glbl_seq_num;
+  int requestor_id;
+  int seq_num;
+  int is_commit;
+  uint8_t data[2048];
+
+}logging_consensus;
+
+#pragma pack(1)
+typedef struct
+{
+    char prefix[8];     // Should be "delmail"
+    char username[32];
+    unsigned long email_id;
 #ifdef SERIALIZE
   friend class boost::serialization::access;
   template <class Archive>

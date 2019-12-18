@@ -8,6 +8,7 @@
 #include <vector>
 
 #define LOG_FILE            "key_value.log"
+extern char log_file[256];
 
 typedef struct 
 {
@@ -16,7 +17,8 @@ typedef struct
 }user_login;
 
 extern bool verbose;
-std::ofstream ofs(LOG_FILE,std::fstream::trunc);
+std::ofstream ofs;
+extern char seq_no_file[256];
 
 unsigned long long get_log_sequence_no()
 {
@@ -182,7 +184,7 @@ int add_log_entry(op_type type, void* data)
     if (verbose)
         printf("updating sequence no \n");
     /** Update the sequence number */
-    FILE* file = fopen(LOG_SEQ_NO_FILE, "r+");
+    FILE* file = fopen(seq_no_file, "r+");
 
     if (file == NULL)
     {
@@ -228,12 +230,12 @@ int replay_log()
 #ifdef SERIALIZE
     /** Deserialize data from file */
     int type;
-    std::ifstream ifs(LOG_FILE);
+    std::ifstream ifs(log_file);
     
     if (verbose)
         printf("Replaying log\n");
     
-    FILE* file = fopen(LOG_SEQ_NO_FILE, "r");
+    FILE* file = fopen(seq_no_file, "r");
 
     if (file == NULL)
     {

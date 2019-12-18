@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -13,11 +15,17 @@
 #include <vector>
 #include <errno.h>
 #include <unordered_map>
+#include <map>
+#include <fstream>
+#include <pthread.h>
 
 #include "data_types.h"
 #include "logging.h"
 #include "socket.h"
 #include "thread.h"
+#include "seq_consistency.h"
+#include "gossip_client.h"
+#include "logging.h"
 #include "key_value.h"
 
 #define IP_ADDRESS_LEN  16
@@ -33,26 +41,37 @@ unsigned short server_no, group_no;
 extern int master_sockfd; 
 
 volatile int fds[100];
+extern int num_gserver_fd;
+int replica_count = 0;
+int client_count = 0;
+int server_fd;
+int gossip_fd;
+int peer_fd[10];
+int is_primary = 0;
+int myserver_id;
+char seq_no_file[256];
+char checkpoint_ver_file[256];
+char log_file[256];
+extern int gserver_fd[10];
+extern std::ofstream ofs;
 std::unordered_map<int, char*> server_addresses; 
-std::unordered_map<int, char*> server_group; 
+std::map<int, char*> server_group; 
 uint8_t total_servers = 0;
 uint8_t server_id;
+pthread_t gossip_th;
 
 void* run_server_for_admin(void* args);
 
-void* run_storage_server(void* params)
+//void* run_storage_server(char ip_address[], int server_port_no)
+void* run_storage_server(void *params)
 {
     int server_fd;
-    int client_count = 0;
     char success_msg[] = "+OK Server ready (Author: Team 24)\r\n";
     int msg_len = strlen(success_msg);
 
     printf("running storage server\n");
     /** Prepare the socket - create, bind, and listen to port */
     server_fd = prepare_socket(server_port_no);
-
-    //int flags = fcntl(server_fd, F_GETFL, 0);
-    //fcntl(server_fd, F_SETFL, flags | O_NONBLOCK);
 
     if (server_fd == -1)
         exit(EXIT_FAILURE);
@@ -107,7 +126,7 @@ term:
     return NULL;
 }
 
-bool read_server_config_master(char* config_file, unsigned short group_no, unsigned short server_no, char* ip_addr, int* port_no)
+bool read_server_config_master(char* config_file, unsigned short group_no, unsigned short server_no, char* ip_addr, int* port_no, int* gossip_port_no)
 {
     /** Open config file */
     FILE* file = fopen(config_file, "r");
@@ -161,7 +180,12 @@ bool read_server_config_master(char* config_file, unsigned short group_no, unsig
                         strncpy(ip_addr, token, ip_len);
                         *port_no = atoi(token + ip_len + 1);
 
+                        *gossip_port_no = *port_no + GOSSIP_OFFSET;
+                        myserver_id = position_no;
+                        server_group.insert(std::make_pair(*port_no, ip_addr));
                         printf("this server ip address: %s port no: %d\n", ip_addr, *port_no);
+
+                        printf("this server ip address: %s gossip port no: %d\n", ip_addr, *gossip_port_no);
                     }
                 }
                 else
@@ -203,7 +227,7 @@ bool read_server_config_master(char* config_file, unsigned short group_no, unsig
     return SUCCESS;
 }
 
-bool read_server_config(char* config_file, unsigned short server_no, char* ip_address, int* port_no)
+bool read_server_config(char* config_file, unsigned short server_no, char* ip_address, int* port_no, int* gossip_port_no)
 {
     /** Open config file */
     FILE* file = fopen(config_file, "r");
@@ -244,6 +268,7 @@ bool read_server_config(char* config_file, unsigned short server_no, char* ip_ad
                 {
                     printf("ip address: %s\n pert no: %d\n", ip_address, *port_no);
                 }
+                *gossip_port_no = *port_no + GOSSIP_OFFSET;
             }
         }
         else
@@ -312,7 +337,7 @@ void parse_args(int argc, char *argv[], char* config_file, unsigned short* group
         exit(EXIT_FAILURE);    
     }
     *group_no = atoi(argv[optind++]);
-
+   
     /** Read server no */
     if (optind >= argc)
     {
@@ -355,6 +380,70 @@ void create_socket_for_master()
     {
         printf("connected to the master server..\n"); 
     }
+}
+void *gossip_server(void *arg) 
+{
+    printf("running gossip server\n");
+    int port_no = *(int *)(arg);
+ //   printf("port_no %d\n", port_no);
+    char success_msg[] = "+OK Gossip Server ready (Author: Team 24)\r\n";
+    int msg_len = strlen(success_msg);
+    int client_fd;
+
+    /** Prepare the socket - create, bind, and listen to port */
+    gossip_fd = prepare_socket(port_no);
+
+    if (gossip_fd == -1)
+        exit(EXIT_FAILURE);
+
+    /** Run until terminated by a SIGINT signal */
+    while(!terminate)
+    {
+        client_fd = -1;
+        struct sockaddr_in client_addr;
+        socklen_t client_addrlen = sizeof(client_addr);
+
+        /** Accept the connection */
+        client_fd = accept(gossip_fd, (struct sockaddr *)&client_addr, (socklen_t*)&client_addrlen);
+
+        /** Check if terminate flag is set, if yes terminate the fd immediately */
+        if (terminate)
+        {
+            close(client_fd);
+            exit(EXIT_SUCCESS);
+        }
+        else
+        {
+            peer_fd[replica_count++] = client_fd;
+        }
+
+        if (client_fd < 0 && errno != EAGAIN && errno != EWOULDBLOCK) 
+        {
+            if (verbose)
+                fprintf(stderr, "accept failed\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        if (verbose)
+            printf("accepted gossip peer connection\n");
+
+        /** Send the connection OK msg */
+        //send_msg_to_socket(success_msg, msg_len, *client_fd);
+
+        /** Create a separate thread for communication */
+        create_peer_thread(&peer_fd[replica_count - 1], replica_count);
+        
+    }
+}
+
+int run_gossip_server(char ip_address[], int *port_no) 
+{
+    pthread_create(&gossip_th, 0, &gossip_server, (void *)port_no);
+    if(*port_no == 12000) {
+      is_primary = 1;  
+      create_primary_thread();
+    }
+    return 0;
 }
 void* read_admin_commands(int client_fd)
 {
@@ -405,6 +494,10 @@ void* read_admin_commands(int client_fd)
 
             /** Open the connection to master */
             create_socket_for_master();
+            
+            /** Run the main listener thread again */
+            //pthread_t thread;
+            //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
 
             /** Run the main listener thread again */
             //pthread_t thread;
@@ -473,17 +566,30 @@ int main(int argc, char *argv[])
 
     /** Process the command-line args */
     char config_file[256];
+    int gossip_port_no;
+    int gossip_fd;
 
     parse_args(argc, argv, config_file, &group_no, &server_no);
 
     /** Read ip address and port no from config file */
-    bool res = read_server_config_master(config_file, group_no, server_no, ip_address, &server_port_no);
+    bool res = read_server_config_master(config_file, group_no, server_no, ip_address, &server_port_no, &gossip_port_no);
 
     if (res == FAILURE)
         exit(EXIT_FAILURE);
 
+    run_gossip_server(ip_address, &gossip_port_no);
+    sleep(5);     /* sleep to get all gossip servers up */
+    init_client_gossip(gossip_port_no);
+    sprintf(log_file, "key_value_%d.log", myserver_id);
+    sprintf(seq_no_file, "log_seq_no_%d.txt", myserver_id);
+    sprintf(checkpoint_ver_file, "checkpoint_ver_no_%d.txt", myserver_id);
+//    replay_log(log_file);
+    ofs.open(log_file, std::fstream::app);
+//    run_storage_server(ip_address, server_port_no);
+
+
     /** Create and write 0 to log sequence no file */
-    FILE* fd = fopen(LOG_SEQ_NO_FILE, "w");
+    FILE* fd = fopen(seq_no_file, "w");
 
     if (fd == NULL)
     {
@@ -497,7 +603,7 @@ int main(int argc, char *argv[])
     fclose(fd);
 
     /** Create and write 0 to checkpoint version no file */
-    FILE* c_fd = fopen(CHECKPOINT_VERSION_FILE,  "w");
+    FILE* c_fd = fopen(checkpoint_ver_file,  "w");
 
     if (c_fd == NULL)
     {
@@ -535,5 +641,8 @@ int main(int argc, char *argv[])
 
     pthread_join(thread, NULL);
     pthread_join(thread2, NULL);
+   
+    for(int i = 0; i < num_gserver_fd; i++)
+      server_close(gserver_fd[i]);
     exit(EXIT_SUCCESS);
 }

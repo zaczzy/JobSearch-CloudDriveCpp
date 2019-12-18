@@ -1,12 +1,44 @@
 CC_FLAGS = -Wall -lpthread -lboost_serialization
+TARGETS = storage_server mailclient smtp admin
 # S_FLAGS = -fsanitize=address -fno-omit-frame-pointer -pedantic
 VALGRIND_DEBUG_FLAG = -g
 GDB_DEBUG_FLAG = -ggdb
+OBJS_SMTP = smtp_thread.o smtp.o mailservice.o
 CC = g++ -std=c++11  $(GDB_DEBUG_FLAG) $(VALGRIND_DEBUG_FLAG)
-OBJ = socket.cc  key_value.cc thread.cc logging.cc
+OBJ = socket.cc  key_value.cc thread.cc logging.cc gossip_client.cc seq_consistency.cc 
+CFLAGS= -g -std=c++11 -lpthread -lboost_serialization
+
+all: $(TARGETS)
+
+clean: rm -f $(TARGETS) $(OBJS_SMTP) $(OBJ_ADMIN)
 
 storage_server: storage_server.cc $(OBJ)
 	$(CC) $^ -o $@ $(CC_FLAGS)
+
+mailclient: mailclient.o mailservice.o
+	$(CC) $^ $(CFLAGS) -o $@
+
+mailclient.o: mailclient.c
+	$(CC) -c $^ $(CCFLAGS) -g -o $@
+
+mailservice.o: mailservice.c
+	$(CC) -c $^ $(CCFLAGS) -g -o $@
+
+smtp: $(OBJS_SMTP)
+	$(CC) $^ $(CFLAGS) -g -o $@
+ 
+smtp.o: smtp.c 
+	$(CC) -c $^ $(CFLAGS) -g -lpthread -o $@
+
+smtp_thread.o: smtp_thread.c 
+	$(CC) -c $^ $(CFLAGS) -g -o $@
+	
+admin : $(OBJS_ADMIN)	
+	$(CC) $^ $(CFLAGS) -g -o $@
+
+admin.o: admin.c	
+	$(CC) -c $^ $(CFLAGS) -g -o $@
+
 
 #%.o: %.c 
 #	$(CC) -c -o $@ $< 

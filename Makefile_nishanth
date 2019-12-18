@@ -1,12 +1,12 @@
-TARGETS = mailclient storage_server
+TARGETS = storage_server mailclient
 OBJS_POP3 = pop3_thread.o pop3.o
 OBJS_SMTP = smtp_thread.o smtp.o
 CC=g++
-CFLAGS=-std=c++11 -lpthread
+CFLAGS= -g -std=c++11 -lpthread -lboost_serialization
 
 all: $(TARGETS)
 
-storage_server: storage_server.cc socket.cc thread.cc key_value.cc
+storage_server: storage_server.cc socket.cc thread.cc key_value.cc seq_consistency.cc gossip_client.cc logging.cc
 	$(CC) $^ $(CFLAGS) -o $@
 
 echoserver: echothread.o echoserver.o
@@ -19,13 +19,13 @@ echothread.o: echothread.c
 	$(CC) -c $^ -g -o $@
 
 mailclient: mailclient.o mailservice.o
-	$(CC) $^ -o $@
+	$(CC) $^ $(CFLAGS) -o $@
 
 mailclient.o: mailclient.c
-	$(CC) -c $^ -g -o $@
+	$(CC) -c $^ $(CFLAGS) -g -o $@
 
 mailservice.o: mailservice.c
-	$(CC) -c $^ -g -o $@
+	$(CC) -c $^ $(CFLAGS) -g -o $@
 
 smtp: $(OBJS_SMTP)
 	$(CC) $^ -lpthread -g -o $@

@@ -147,7 +147,7 @@ int send_email(char * user, char *rcpt_user, char *mail_msg, char *subject, int 
   strcpy(header.subject, subject);
   strcpy(header.date, asctime(timeinfo));
   strcpy(request.prefix, "putmail");
-  strcpy(request.username, user);
+  strcpy(request.username, rcpt_user);
   memcpy(&(request.header), &header, sizeof(email_header));
   request.email_len = strlen(mail_msg);
   strcpy(request.email_body, mail_msg);
@@ -155,6 +155,7 @@ int send_email(char * user, char *rcpt_user, char *mail_msg, char *subject, int 
   send(server_fd, &request, sizeof(put_mail_request), 0);
   recv(server_fd, recv_msg, RECV_SIZE, 0);
 
+  printf("recv_msg: %s\n", recv_msg);
 #ifdef DEBUG
   printf("recv_msg: %s\n", recv_msg);
 #endif
@@ -204,8 +205,13 @@ int validateMailId(char *user, uint16_t mailId) {
 int deleteEmail(char *user, uint16_t mailId, char *msg, int server_fd, char recv_msg[]) {
 
   delete_mail_request del_req;
+  const char dummy_user[30] = "No such user";
   strcpy(del_req.prefix, "delmail");
-  strcpy(del_req.username, user);
+  if(user != NULL)
+    strcpy(del_req.username, user);
+  else
+    strcpy(del_req.username, dummy_user);
+
   del_req.email_id =  (unsigned long) mailId;
  // send(send_msg);
   send(server_fd, &del_req, sizeof(delete_mail_request), 0);
@@ -230,6 +236,7 @@ int downloadEmail(char *user, uint16_t mailId, char *msg, int server_fd, char em
 
   get_mail_body_request mail_req;
   get_mail_body_response mail_resp;
+  int mail_len = 0;
   memset(mail_resp.mail_body, 0, sizeof(mail_resp.mail_body));
 
   strcpy(mail_req.prefix, "mailbody");
@@ -246,9 +253,13 @@ int downloadEmail(char *user, uint16_t mailId, char *msg, int server_fd, char em
 #endif
   fprintf(stderr,"\n\n\nemail_len: %lu\n", mail_resp.mail_body_len);
   fprintf(stderr,"\nemail_body: %s\n", mail_resp.mail_body);
-  
-  strncpy(email_body, mail_resp.mail_body, mail_resp.mail_body_len);
-  email_body[mail_resp.mail_body_len] = '\0';
+ 
+  if(mail_resp.mail_body_len != 0) { 
+    strncpy(email_body, mail_resp.mail_body, mail_resp.mail_body_len);
+    mail_len += mail_resp.mail_body_len;
+  }
+
+  email_body[mail_len] = '\0';
 
   return 0;
 }
@@ -269,16 +280,15 @@ int retrieveMailHeader(char *user, int server_fd, get_mail_response *resp) {
   send(server_fd, &request, sizeof(get_mail_request), 0);
   
   int i = recv(server_fd, (get_mail_response *)resp, sizeof(get_mail_response), 0);
-  printf(">>>>BackendSocket %d, recv #bytes %d, # emails %lu ", server_fd, i, resp->num_emails);
-//  printf("\t\t\t\t\tINBOX\n\n\n");
+  printf("\t\t\t\t\tINBOX\n\n\n");
 #ifdef DEBUG
   printf("username: %s\n", (char *)resp->username);
   printf("num_emails: %d\n", (int)resp->num_emails);
 #endif
-//  for(int i=0 ; i < resp->num_emails ; i++) {
-//
-//  printf("From: %s To: %s Subject: %s, date: %s\n", resp->email_headers[i].from,  resp->email_headers[i].to,  resp->email_headers[i].subject,  resp->email_headers[i].date);
-//
-//  }
+  for(int i=0 ; i < resp->num_emails ; i++) {
+
+  printf("From: %s To: %s Subject: %s, date: %s\n", resp->email_headers[i].from,  resp->email_headers[i].to,  resp->email_headers[i].subject,  resp->email_headers[i].date);
+
+  }
   return 0;
 }

@@ -12,6 +12,7 @@
 
 #include "error.h"
 #include "logging.h"
+#include "seq_consistency.h"
 
 #define MAX_TABLET_USERS    100     // TODO: Check with team 
 
@@ -1152,6 +1153,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message) + 1, fd);
 
         return SUCCESS;
@@ -1175,6 +1177,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
 
         return SUCCESS;
@@ -1201,6 +1204,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
 
         return SUCCESS;
@@ -1223,7 +1227,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
-        printf("sending msg : %s\n", message);
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
 
         return SUCCESS;
@@ -1248,6 +1252,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
             
         return SUCCESS;
@@ -1265,6 +1270,7 @@ bool process_command(char* command, int len, int fd)
 
         if (res == SUCCESS)
         {
+           if(fd != -1)
             send_msg_to_socket((char*)(&response), sizeof(get_mail_response), fd);
         }
         else
@@ -1273,6 +1279,7 @@ bool process_command(char* command, int len, int fd)
             {
                 strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
                 message[strlen(message)] = '\0';
+                if(fd != -1)
                 send_msg_to_socket(message, strlen(message), fd);
             }
         }
@@ -1292,6 +1299,7 @@ bool process_command(char* command, int len, int fd)
         
         if (res == SUCCESS)
         {
+          if(fd != -1)
             send_msg_to_socket((char*)(&response), sizeof(get_mail_body_response), fd);
         }
         else
@@ -1302,6 +1310,7 @@ bool process_command(char* command, int len, int fd)
                 strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
             
             message[strlen(message)] = '\0';
+            if(fd != -1)
             send_msg_to_socket(message, strlen(message), fd);
         }
 
@@ -1329,6 +1338,7 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
         
         message[strlen(message)] = '\0';
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
 
         return SUCCESS;
@@ -1367,9 +1377,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
-        if (verbose)
-            printf("sending msg: %s\n", message);
-       
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
             
         return SUCCESS;
@@ -1388,6 +1396,7 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
 
         message[strlen(message)] = '\0';
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
         
         return SUCCESS;
@@ -1412,6 +1421,7 @@ bool process_command(char* command, int len, int fd)
 
         message[strlen(message)] = '\0';
 
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
             
         return SUCCESS;
@@ -1439,7 +1449,9 @@ bool process_command(char* command, int len, int fd)
         else if (res == ERR_USER_DOESNT_EXIST)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
 
+
         message[strlen(message)] = '\0';
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
         
         return SUCCESS;
@@ -1463,7 +1475,31 @@ bool process_command(char* command, int len, int fd)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
         
         message[strlen(message)] = '\0';
-        printf("mkfolder Message: %s\n", message);
+        if(fd != -1)
+        send_msg_to_socket(message, strlen(message), fd);
+        
+        return SUCCESS;
+    }
+    /** create folder command */
+    else if (strncmp(command, "mkfolder", 8) == 0 || strncmp(command, "MKFOLDER", 8) == 0)
+    {
+        create_folder_request* folder_request = (create_folder_request*)command;
+
+        /** LOg this entry into the log file */
+        add_log_entry(ADD_FOLDER, folder_request);
+
+        /** Get file data */
+        int res = create_folder(folder_request);
+
+        if (res == ERR_FILE_ALREADY_EXISTS)
+            strncpy(message, "-ERR folder already exist", strlen("-ERR folder already exist"));
+
+        else if (res == ERR_USER_DOESNT_EXIST)
+            strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
+        message[strlen(message)] = '\0';
+
+        if(fd != -1)
         send_msg_to_socket(message, strlen(message), fd);
         
         return SUCCESS;
@@ -1497,6 +1533,7 @@ bool process_command(char* command, int len, int fd)
     {
         put_file_request* file_request = (put_file_request*)command;
 
+
         /** Store the new file */
         int res = store_file(file_request, fd);
         
@@ -1519,10 +1556,12 @@ bool process_command(char* command, int len, int fd)
         /** Get file data */
         int res = get_file_data(file_request, fd);
 
+
         if (res == ERR_FILE_DOESNT_EXIST)
             strncpy(message, "-ERR file doesn't exist", strlen("-ERR file doesn't exist"));
         else if (res == ERR_USER_DOESNT_EXIST)
             strncpy(message, "-ERR user doesn't exist", strlen("-ERR user doesn't exist"));
+
 
         message[strlen(message)] = '\0';
         send_msg_to_socket(message, strlen(message), fd);
