@@ -164,6 +164,20 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
   return HTML;
 }
 
+string SingleConnServerHTML::readFavicon(string fname) {
+  string HTML = "";
+  ifstream infile(fname);
+  if (!infile) {
+    string msg = "Can't open " + fname + "\n";
+    die(msg);
+  }
+  string line;
+  while (getline(infile, line)) {
+    HTML += line;
+  }
+  return HTML;
+}
+
 string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
   if (VERBOSE)
     fprintf(stderr, "[%d][WEB] S: Generating Inbox... [localhost]\r\n", sock);
@@ -198,6 +212,19 @@ string SingleConnServerHTML::generateLogin(string msg) {
   string post = HTML.substr(i_marker + 9);
   return pre + msg + post;
 }
+/*
+ * Generate 200 headers for favicon
+ */
+static string getFaviconHeaders(int length = 0) {
+  string statusLine = "HTTP/1.1 200 OK\r\n";
+  // if body exists
+  if (length > 0) {
+    statusLine += "Content-Type: image/x-icon\r\n";
+    statusLine += "Content-Length: " + to_string(length) + "\r\n";
+  }
+  statusLine += "\r\n";
+  return statusLine;
+}
 
 /*
  * Handle GET request
@@ -205,7 +232,10 @@ string SingleConnServerHTML::generateLogin(string msg) {
 void SingleConnServerHTML::handleGET(bool HEAD = false) {
   // ignore favicons
   if (requestURI.compare("/favicon.ico") == 0) {
-    sendStatus(200);
+    string favicon_binary = readFavicon("templates/favicon.ico");
+    string header = getFaviconHeaders(favicon_binary.size());
+    favicon_binary.insert(0, header);
+    write(sock, favicon_binary.c_str(), favicon_binary.size());
     return;
   }
 
@@ -257,8 +287,6 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
   } else if (!requestURI.substr(0, 3).compare("/ls")) {
     string URI = requestURI.substr(3);  // "/r00t/dir1"
     string path, folder;                // "/r00t", "/you%20think"
-    // replace_all_occurrences(folder, "%20", " "); //TODO: fix
-    cout << "You can do it later: " << folder << endl;
     split_filename(URI, path, folder);
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
@@ -334,7 +362,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     }
     handleGET();
     return;
-  }else {
+  } else {
     // Resource not found
     sendStatus(404);
     return;
@@ -576,7 +604,7 @@ void SingleConnServerHTML::backbone() {
       continue;
     }
     requestURI = reqURI;
-
+    replace_all_occurrences(requestURI, "%20", " ");
     // check cookie
     int receivedCookie = -1;
     for (string header : headers) {
