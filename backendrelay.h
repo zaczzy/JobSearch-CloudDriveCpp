@@ -28,6 +28,7 @@ class BackendRelay {
   void recvChunk(get_file_response* resp);
 	bool createFolderRequest(const create_folder_request* req);
 	bool removeFolderRequest(const delete_folder_content_request* req);
+  bool removeFileRequest(const delete_file_request* req);
   pthread_mutex_t mutex_sock;
 
  private:
