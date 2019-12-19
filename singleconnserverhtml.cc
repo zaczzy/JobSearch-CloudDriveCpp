@@ -60,7 +60,7 @@ int SingleConnServerHTML::sendMsg(string msg) {
   char *m = (char *)msg.c_str();
   int i = write(sock, m, strlen(m));
   if (shutdownFlag || i < 0) die("Shutdown flag or write fail");
-  if (VERBOSE) fprintf(stderr, "[%d][WEB] S: {%s}\n", sock, m);
+  // if (VERBOSE) fprintf(stderr, "[%d][WEB] S: {%s}\n", sock, m);
   return 1;
 }
 

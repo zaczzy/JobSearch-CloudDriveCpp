@@ -114,7 +114,6 @@ string BackendRelay::sendFolderRequest(const get_folder_content_request *req,
   write(backendSock, req, sizeof(*req));
   char *buff = new char[max_resp_len];
   int buff_size = read(backendSock, buff, max_resp_len);
-  cout << "MOTHER LOOK AT THIS: buff_size😄" << buff_size << endl;
   // reconnect
   while (buff_size <= 0) {
     pthread_mutex_lock(&mutex_sock);
@@ -208,9 +207,9 @@ bool BackendRelay::removeFolderRequest(
   return true;
 }
 bool BackendRelay::removeFileRequest(const delete_file_request* req) {
-  write(masterSock, req, sizeof(*req));
+  write(backendSock, req, sizeof(*req));
   char* confirm = new char[1024];
-  int rlen = read(masterSock, confirm, 1024);
+  int rlen = read(backendSock, confirm, 1024);
   confirm[rlen] = '\0';
   printf("rm file confirm: %s\n", confirm);
   // bool retval = strncmp(confirm, "+OK", 3) == 0;
