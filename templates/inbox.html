@@ -1,4 +1,19 @@
-<html><body>
-	<h1>Mail</h1>
-	<p>You've got mail</p>
-</body></html>
+<html>
+	<head>
+		<style>
+			li {display:inline}
+		</style>
+	</head>
+	<body>
+		<ul>
+			<li><a href="/index.html">Home</a></li>
+			<li><a href="/mail/inbox">Mail</a></li>
+			<li><a href="/storage.html">Storage</a></li>
+			<form action='/handle_logout' method='post' style='display:inline;'>
+				<button type='submit' name='logout' value='logout'>Logout</button>
+			</form>
+		</ul>
+		<h1>Mail</h1>
+		<p>You've got mail</p>
+	</body>
+</html>
