@@ -164,6 +164,20 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
   return HTML;
 }
 
+string SingleConnServerHTML::readFavicon(string fname) {
+  string HTML = "";
+  ifstream infile(fname);
+  if (!infile) {
+    string msg = "Can't open " + fname + "\n";
+    die(msg);
+  }
+  string line;
+  while (getline(infile, line)) {
+    HTML += line;
+  }
+  return HTML;
+}
+
 string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
   if (VERBOSE)
     fprintf(stderr, "[%d][WEB] S: Generating Inbox... [localhost]\r\n", sock);
@@ -198,6 +212,19 @@ string SingleConnServerHTML::generateLogin(string msg) {
   string post = HTML.substr(i_marker + 9);
   return pre + msg + post;
 }
+/*
+ * Generate 200 headers for favicon
+ */
+static string getFaviconHeaders(int length = 0) {
+  string statusLine = "HTTP/1.1 200 OK\r\n";
+  // if body exists
+  if (length > 0) {
+    statusLine += "Content-Type: image/x-icon\r\n";
+    statusLine += "Content-Length: " + to_string(length) + "\r\n";
+  }
+  statusLine += "\r\n";
+  return statusLine;
+}
 
 /*
  * Handle GET request
@@ -205,7 +232,10 @@ string SingleConnServerHTML::generateLogin(string msg) {
 void SingleConnServerHTML::handleGET(bool HEAD = false) {
   // ignore favicons
   if (requestURI.compare("/favicon.ico") == 0) {
-    sendStatus(200);
+    string favicon_binary = readFavicon("templates/favicon.ico");
+    string header = getFaviconHeaders(favicon_binary.size());
+    favicon_binary.insert(0, header);
+    write(sock, favicon_binary.c_str(), favicon_binary.size());
     return;
   }
 
@@ -256,7 +286,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     replace_first_occurrence(HTML, string("{{parent_href}}"), "/storage.html");
   } else if (!requestURI.substr(0, 3).compare("/ls")) {
     string URI = requestURI.substr(3);  // "/r00t/dir1"
-    string path, folder;                // "/r00t", "dir1"
+    string path, folder;                // "/r00t", "/you%20think"
     split_filename(URI, path, folder);
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
@@ -292,6 +322,46 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
       sendMsg(chunk);
     } while (read_ready);
     return;
+  } else if (requestURI.find("/rmfolder") == 0) {
+    string folder_path = requestURI.substr(9);
+    string path, folder;
+    split_filename(folder_path, path, folder);
+    delete_folder_content_request req;
+    memset(&req, 0, sizeof(req));
+    strcpy(req.directory_path, path.c_str());
+    strcpy(req.folder_name, folder.c_str());
+    strcpy(req.username, username.c_str());
+    strcpy(req.prefix, "delfolder");
+    if (!BR->removeFolderRequest(&req)) {
+      cerr << "POST /rmfolder failure!" << endl;
+    }
+    if (path.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + path;
+    }
+    handleGET();
+    return;
+  } else if (requestURI.find("/rmfile") == 0) {
+    string file_path = requestURI.substr(7);
+    string path, fname;
+    split_filename(file_path, path, fname);
+    delete_file_request req;
+    memset(&req, 0, sizeof(req));
+    strcpy(req.prefix, "delfile");
+    strcpy(req.username, username.c_str());
+    strcpy(req.directory_path, path.c_str());
+    strcpy(req.filename, fname.c_str());
+    if (!BR->removeFileRequest(&req)) {
+      cerr << "POST /rmfile failure!" << endl;
+    }
+    if (path.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + path;
+    }
+    handleGET();
+    return;
   } else {
     // Resource not found
     sendStatus(404);
@@ -301,7 +371,22 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
   sendHeaders(HTML.length());
   if (!HEAD) sendMsg(HTML);
 }
+static void ascii_filter(string& s) {
+  
+  set<string> wrong = {"+", "%21", "%22", "%23","%24","%25","%26","%27","%28","%29","%2A","%2B","%2C","%2D","%2E","%2F",
+  "%3A","%3B","%3C","%3D","%3E",
+  "%3F","%40","%5B","%5C","%5D",
+  "%5E","%5F","%60", "%7B","%7C","%7D","%7E"};
+  char right[] = {" ", '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+',',', '-', '.', '/', 
+  ':', ';', '<', '=' , '>', 
+  '?', '@', '[', '\\', ']', 
+  '^', '_', '`', '{', '|', '}', '~'};
 
+  string::size_type pos = 0;
+  while ((pos = s.find("%", pos)) != string::npos) {
+    s = s.replace(pos, sizeof(char), right[i]);
+  }
+}
 /*
  * Handle POST request
  */
@@ -329,7 +414,11 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
              << total_body_read << endl;
       }
     }
-    requestURI = "/storage.html";
+    if (URI.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + URI;
+    }
     cout << "username: " << username << endl;
     handleGET();
     return;
@@ -337,6 +426,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string current_path = requestURI.substr(10);
     string newfdr_name = body;
     newfdr_name = newfdr_name.substr(newfdr_name.find("newfdr_name=") + 12);
+    replace_all_occurrences(newfdr_name, "+", " ");
     create_folder_request req;
     memset(&req, 0, sizeof(req));
     strcpy(req.directory_path, current_path.c_str());
@@ -346,23 +436,11 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     if (!BR->createFolderRequest(&req)) {
       cerr << "POST /addfolder failure!" << endl;
     }
-    requestURI = "/storage.html";
-    handleGET();
-    return;
-  } else if (requestURI.find("/rmfolder") == 0) {
-    string folder_path = requestURI.substr(9);
-    string path, folder;
-    split_filename(folder_path, path, folder);
-    delete_folder_content_request req;
-    memset(&req, 0, sizeof(req));
-    strcpy(req.directory_path, path.c_str());
-    strcpy(req.folder_name, folder.c_str());
-    strcpy(req.username, username.c_str());
-    strcpy(req.prefix, "delfolder");
-    if (!BR->removeFolderRequest(&req)) {
-      cerr << "POST /rmfolder failure!" << endl;
+    if (current_path.compare("/r00t") ==0) {
+      requestURI = "/storage.html";
+    } else {
+      requestURI = "/ls" + current_path;
     }
-    requestURI = "/storage.html";
     handleGET();
     return;
   }
@@ -441,7 +519,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string to = c_rcpt + strlen("to=");
     string subject = c_subj + strlen("subject=");
     string message = c_msg + strlen("message=");
-
+    ascii_filter(message);
     cout << "{" << to << "\n" << subject << "\n" << message << "}" << endl;
 
     char b[BUFF_SIZE];  // unused
@@ -471,7 +549,6 @@ void SingleConnServerHTML::splitHeaderBody(string input,
   // deal with body
   unsigned int i_endheaders = input.find("\r\n\r\n");
   *body = input.substr(i_endheaders + strlen("\r\n\r\n"));
-
   // deal with headers (leave an \r\n for easier iteration below)
   string headers = input.substr(0, i_endheaders + 2);
   unsigned int i_endline;
@@ -542,7 +619,7 @@ void SingleConnServerHTML::backbone() {
       continue;
     }
     requestURI = reqURI;
-
+    replace_all_occurrences(requestURI, "%20", " ");
     // check cookie
     int receivedCookie = -1;
     for (string header : headers) {

@@ -26,9 +26,10 @@ class BackendRelay {
   bool sendChunk(const string &username, const string &directory_path,
                  const string &filename, const string &data,
                  const size_t chunk_len);
-  void recvChunk(get_file_response *resp);
-  bool createFolderRequest(const create_folder_request *req);
-  bool removeFolderRequest(const delete_folder_content_request *req);
+  void recvChunk(get_file_response* resp);
+	bool createFolderRequest(const create_folder_request* req);
+	bool removeFolderRequest(const delete_folder_content_request* req);
+  bool removeFileRequest(const delete_file_request* req);
   pthread_mutex_t mutex_sock;
 
  private:
