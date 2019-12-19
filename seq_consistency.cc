@@ -13,6 +13,7 @@
 #include "seq_consistency.h"
 #include "data_types.h"
 #include "key_value.h"
+#include "logging.h"
 
 #define MAX_DATA_SIZE 1000
 
@@ -32,6 +33,8 @@ map<int, map<int, int>> acktrack;
 pthread_t peer_th[10];
 pthread_t primary_th;
 uint8_t block_flag = 0;
+uint8_t is_checkpoint_block = 0;
+int send_count = 0;
 
 typedef struct hold_que {
   uint8_t data[3000];
@@ -308,24 +311,50 @@ void *listen_peer(void *arg)
    } else if(!strcasecmp((char *)log_struct.data, "+OK")) {
       printf("received OK at server_id %d\n", myserver_id);
      block_flag = 0;
+   }  else if(!strcasecmp((char *)log_struct.data, "+CP_ACK")) {
+        send_count--;
+        if(send_count == 0)
+            is_checkpoint_block = 0;
+
+   } else if(!strcasecmp((char *)log_struct.data, "+CHECKPOINT")) {
+       printf("received CHECKPOINT at server_id %d\n", myserver_id);
+       take_checkpoint();
+
+       const char *ack_data = "+CP_ACK";
+       memset(&send_struct, 0, sizeof(logging_consensus));
+       send_struct.primaryId = log_struct.primaryId;
+       send_struct.glbl_seq_num = log_struct.glbl_seq_num;
+       send_struct.requestor_id = log_struct.requestor_id;
+       send_struct.seq_num = log_struct.seq_num;
+       send_struct.is_commit = 0;
+       memcpy(send_struct.data, ack_data, strlen(ack_data));
+
+       sid2cfditr = sid2cfd.find(1);            /******1 should be replaced with primaryID ********/
+       int send_bytes = send(gserver_fd[sid2cfditr->first], &send_struct, sizeof(logging_consensus), 0);
+       if(send_bytes < sizeof(logging_consensus)) 
+       {
+           perror("Couldn't send ACK message to primary!");
+       }
+
    } else if(log_struct.is_commit == 1) {
-     //doLocalcommit(log_struct.data);
-     if(log_struct.requestor_id != myserver_id) {
-       printf("processing command in non-primary\n");
-       process_command((char *)log_struct.data, sizeof(log_struct.data), -1);
-      }
-      
-     const char *ack_data = "+ACK";
-     memset(&send_struct, 0, sizeof(logging_consensus));
-     send_struct.primaryId = log_struct.primaryId;
-     send_struct.glbl_seq_num = log_struct.glbl_seq_num;
-     send_struct.requestor_id = log_struct.requestor_id;
-     send_struct.seq_num = log_struct.seq_num;
-     send_struct.is_commit = 0;
-     memcpy(send_struct.data, ack_data, strlen(ack_data));
+       //doLocalcommit(log_struct.data);
+       if(log_struct.requestor_id != myserver_id) {
+           printf("processing command in non-primary\n");
+           process_command((char *)log_struct.data, sizeof(log_struct.data), -1);
+       }
+
+       const char *ack_data = "+ACK";
+       memset(&send_struct, 0, sizeof(logging_consensus));
+       send_struct.primaryId = log_struct.primaryId;
+       send_struct.glbl_seq_num = log_struct.glbl_seq_num;
+       send_struct.requestor_id = log_struct.requestor_id;
+       send_struct.seq_num = log_struct.seq_num;
+       send_struct.is_commit = 0;
+       memcpy(send_struct.data, ack_data, strlen(ack_data));
 
      //int send_bytes = write(primary_fd, ack_data, strlen(ack_data));
-     sid2cfditr = sid2cfd.find(1);
+     sid2cfditr = sid2cfd.find(1);   /******1 should be replaced with primaryID ********/
+
      int send_bytes = send(gserver_fd[sid2cfditr->first], &send_struct, sizeof(logging_consensus), 0);
     if(send_bytes < sizeof(logging_consensus)) 
     {
@@ -370,10 +399,12 @@ void *primary_sequentialize(void *arg) {
   //char *data = (char *)malloc(sizeof(char) * MAX_DATA_SIZE);
   uint8_t *final_data = (uint8_t *)malloc(sizeof(char) * MAX_DATA_SIZE);
   const char *log_commit = "+COMMIT";
+  const char *log_checkpoint = "+CHECKPOINT";
   //char *final_data = (char *)malloc(sizeof(char) * MAX_DATA_SIZE);
   int send_bytes = 0;
   logging_consensus log_struct;
   logging_consensus rd_log_struct;
+  logging_consensus checkpoint_struct;
   map<int, map<int, int> >::iterator ackitr;
   map<int, int>::iterator subackitr;
   map<int, int>::iterator sid2cfditr;
@@ -493,6 +524,33 @@ for(int i = 0; i < num_gserver_fd; i++) {
     memset(&log_struct, 0, sizeof(logging_consensus));
 
     glbl_seq_num++;
+
+    if(get_log_sequence_no()  > LOG_LIMIT) {
+
+        checkpoint_struct.primaryId = myserver_id;
+        checkpoint_struct.glbl_seq_num = glbl_seq_num;
+        checkpoint_struct.requestor_id = -1;
+        checkpoint_struct.seq_num = -1;
+        memcpy(checkpoint_struct.data, log_checkpoint, strlen(log_checkpoint));
+        send_count = 0;
+        for(sid2cfditr = sid2cfd.begin(); sid2cfditr != sid2cfd.end(); ++sid2cfditr) {
+
+            if(sid2cfditr->first != myserver_id) {
+                send_bytes = send(gserver_fd[sid2cfditr->first], &checkpoint_struct, sizeof(logging_consensus), 0);
+
+                if(send_bytes < sizeof(logging_consensus)) 
+                {
+                    perror("Couldn't send message to peer1!");
+                }
+                send_count++;
+            }
+        }
+        printf("Primary takes checkpoint\n");
+        take_checkpoint();
+        int is_checkpoint_block = 1;
+        while(is_checkpoint_block == 1) sleep(1);
+        glbl_seq_num++;
+    }
 
   }//Go back to sequentializing
 

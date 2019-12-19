@@ -18,7 +18,7 @@ typedef enum : int
     DELETE_FOLDER
 }op_type;
 
-unsigned long long get_log_sequence_no();
+long long get_log_sequence_no();
 unsigned long long get_checkpoint_version_no();
 void update_log_file(char* data, unsigned long size);
 int add_log_entry(op_type type, void* data);

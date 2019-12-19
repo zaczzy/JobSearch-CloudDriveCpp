@@ -51,6 +51,7 @@ int is_primary = 0;
 int myserver_id;
 char seq_no_file[256];
 char checkpoint_ver_file[256];
+char checkpoint_file[256];
 char log_file[256];
 extern int gserver_fd[10];
 extern std::ofstream ofs;
@@ -59,6 +60,7 @@ std::map<int, char*> server_group;
 uint8_t total_servers = 0;
 uint8_t server_id;
 pthread_t gossip_th;
+pthread_mutex_t log_file_mutx;
 
 void* run_server_for_admin(void* args);
 
@@ -583,8 +585,10 @@ int main(int argc, char *argv[])
     sprintf(log_file, "key_value_%d.log", myserver_id);
     sprintf(seq_no_file, "log_seq_no_%d.txt", myserver_id);
     sprintf(checkpoint_ver_file, "checkpoint_ver_no_%d.txt", myserver_id);
+    sprintf(checkpoint_file, "checkpoint_%d.txt", myserver_id);
 //    replay_log(log_file);
-    ofs.open(log_file, std::fstream::trunc);
+    ofs.open(log_file, std::fstream::trunc | std::fstream::out);
+    //cpfs.open(checkpoint_file, std::fstream::trunc | std::fstream::out);
 //    run_storage_server(ip_address, server_port_no);
 
 
@@ -615,7 +619,8 @@ int main(int argc, char *argv[])
     unsigned long long version_no = 0;
     fprintf(fd, "%llu", version_no);
     fclose(c_fd);
-
+    
+    pthread_mutex_init(&log_file_mutx, 0);
     pthread_t thread;
     int iret1 = pthread_create(&thread, NULL, run_server_for_admin, NULL);
 
@@ -644,5 +649,6 @@ int main(int argc, char *argv[])
    
     for(int i = 0; i < num_gserver_fd; i++)
       server_close(gserver_fd[i]);
+    pthread_mutex_destroy(&log_file_mutx);
     exit(EXIT_SUCCESS);
 }

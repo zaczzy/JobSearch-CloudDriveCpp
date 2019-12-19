@@ -19,10 +19,13 @@ typedef struct
 extern bool verbose;
 std::ofstream ofs;
 extern char seq_no_file[256];
+extern char checkpoint_ver_file[256];
+extern pthread_mutex_t log_file_mutx;
 
-unsigned long long get_log_sequence_no()
+long long get_log_sequence_no()
 {
-    FILE* file = fopen(LOG_SEQ_NO_FILE, "r");
+    pthread_mutex_lock(&log_file_mutx);
+    FILE* file = fopen(seq_no_file, "r");
 
     if (file == NULL)
     {
@@ -35,10 +38,12 @@ unsigned long long get_log_sequence_no()
     char* seq_no_str;
     size_t len = 0;
     int ret = getline(&seq_no_str, &len, file);
+    perror("Failed at getline");
 
     fclose(file);
+    pthread_mutex_unlock(&log_file_mutx);
 
-    printf("ret: %d, str: %s\n", ret, seq_no_str);
+    printf("getlint ret: %d, current log sequence: %s\n", ret, seq_no_str);
     if (ret != -1)
     {
         return atoi(seq_no_str);
@@ -51,7 +56,7 @@ unsigned long long get_log_sequence_no()
 
 unsigned long long get_checkpoint_version_no()
 {
-    FILE* file = fopen(CHECKPOINT_FILE, "r");
+    FILE* file = fopen(checkpoint_ver_file, "r");
 
     if (file == NULL)
     {
@@ -184,6 +189,7 @@ int add_log_entry(op_type type, void* data)
     if (verbose)
         printf("updating sequence no \n");
     /** Update the sequence number */
+    pthread_mutex_lock(&log_file_mutx);
     FILE* file = fopen(seq_no_file, "r+");
 
     if (file == NULL)
@@ -220,6 +226,7 @@ int add_log_entry(op_type type, void* data)
         if (verbose)
             printf("Couldn't read sequence number. Error : %s\n", strerror(errno));
     }
+        pthread_mutex_unlock(&log_file_mutx);
 
 #endif
     return 0; // zac added
@@ -235,6 +242,7 @@ int replay_log()
     if (verbose)
         printf("Replaying log\n");
     
+    pthread_mutex_lock(&log_file_mutx);
     FILE* file = fopen(seq_no_file, "r");
 
     if (file == NULL)
@@ -257,6 +265,9 @@ int replay_log()
         if (verbose)
             printf("current seq no: %llu\n", sequence_no);
     }
+    fclose(file);
+    
+    pthread_mutex_unlock(&log_file_mutx);
 
     unsigned long long ctr = 0;
     while (ctr++ < sequence_no)

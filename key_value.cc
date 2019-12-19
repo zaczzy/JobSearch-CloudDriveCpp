@@ -18,6 +18,10 @@
 
 int master_sockfd; 
 extern int server_no, group_no;
+extern char checkpoint_ver_file[256];
+extern char checkpoint_file[256];
+extern int log_count;
+
 
 typedef enum 
 {
@@ -66,25 +70,27 @@ private:
   template<class Archive>
   void save(Archive& ar, const unsigned version) const 
   {  
-      ar & vect->size();
-      for(int i = 0 ; i < vect->size(); i++)
-      {
-          ar & vect[i];
-      }
+      ar & BOOST_SERIALIZATION_NVP(*vect);
+      //ar & vect->size();
+      //for(int i = 0 ; i < vect->size(); i++)
+      //{
+      //    ar & (*vect)[i];
+      //}
   }
 
   template<class Archive>
   void load(Archive& ar, const unsigned version) 
   {
-       int vect_size;
-       ar & vect_size;
+       ar & BOOST_SERIALIZATION_NVP(*vect);
+      // int vect_size;
+      // ar & vect_size;
 
-       for (int i = 0; i < vect_size; i++)
-       {
-           fd_entry entry;
-           ar & entry;
-           vect->push_back(entry);
-       }
+      // for (int i = 0; i < vect_size; i++)
+      // {
+      //     fd_entry entry;
+      //     ar & entry;
+      //     vect->push_back(entry);
+      // }
   }
 
   BOOST_SERIALIZATION_SPLIT_MEMBER();
@@ -92,6 +98,43 @@ private:
 private:
   std::vector<fd_entry>*& vect;
 };
+//class VectorHelper {
+//public:
+//  VectorHelper(std::vector<fd_entry>*& _vect) : vect(_vect) {}
+//
+//private:
+//
+//  friend class boost::serialization::access;
+//
+//  template<class Archive>
+//  void save(Archive& ar, const unsigned version) const 
+//  {  
+//      ar & vect->size();
+//      for(int i = 0 ; i < vect->size(); i++)
+//      {
+//          ar & (*vect)[i];
+//      }
+//  }
+//
+//  template<class Archive>
+//  void load(Archive& ar, const unsigned version) 
+//  {
+//       int vect_size;
+//       ar & vect_size;
+//
+//       for (int i = 0; i < vect_size; i++)
+//       {
+//           fd_entry entry;
+//           ar & entry;
+//           vect->push_back(entry);
+//       }
+//  }
+//
+//  BOOST_SERIALIZATION_SPLIT_MEMBER();
+//
+//private:
+//  std::vector<fd_entry>*& vect;
+//};
 #endif
 
 
@@ -1465,10 +1508,11 @@ bool process_command(char* command, int len, int fd)
 #ifdef SERIALIZE
 void serialize_tablet_to_file(const char* filepath)
 {
-   std::ofstream ofs(filepath);
-   boost::archive::text_oarchive oa(ofs);
-   oa << tablet;
-   ofs.close();
+   std::ofstream keyfs(filepath);
+   std::string str ="ritika";
+   boost::archive::text_oarchive oa(keyfs);
+   oa << str;
+   keyfs.close();
 
 }
 
@@ -1488,13 +1532,13 @@ void take_checkpoint()
     if (verbose)
         printf("====Taking checkpoint=====\n");
 
-    serialize_tablet_to_file(CHECKPOINT_FILE);
+    serialize_tablet_to_file(checkpoint_file);
     
     if (verbose)
         printf("====Taken checkpoint successfully====");
 
     /** Read and update checkpoint version no */
-    FILE* file = fopen(CHECKPOINT_VERSION_FILE, "r+");
+    FILE* file = fopen(checkpoint_ver_file, "r+");
 
     if (file == NULL)
     {
@@ -1539,7 +1583,7 @@ void take_checkpoint()
 void write_checkpoint_to_file(char* data, unsigned long size)
 {
     /** Open the checkpoint file in truncate mode */
-    FILE* file = fopen(CHECKPOINT_FILE, "w");
+    FILE* file = fopen(checkpoint_file, "w");
 
     if (file == NULL)
     {
