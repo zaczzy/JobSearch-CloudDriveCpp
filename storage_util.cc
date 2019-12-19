@@ -45,10 +45,10 @@ void request_file_names(std::vector<std::string>& filenames,
   strcpy(req.username, username.c_str());
   strcpy(req.folder_name, folder_name.c_str());
   std::string response_line =
-      BR->sendFolderRequest(&req, MAX_FOLDER_INFO_LENGTH);
+      BR->sendFolderRequest(&req, MAX_FOLDER_INFO_LENGTH, username);
   if (!response_line.compare("")) return;
   split(filenames, response_line, '~');
-  for (string& str: filenames) {
+  for (string& str : filenames) {
     cout << "GOT NAME: <" << str << ">" << endl;
   }
 }
@@ -83,8 +83,8 @@ void split_filename(const std::string& str, std::string& path,
   folder = str.substr(found + 1);
 }
 bool request_file_download(const std::string& username,
-                           const std::string& current_path,
-                           std::string& fname, BackendRelay* BR) {
+                           const std::string& current_path, std::string& fname,
+                           BackendRelay* BR) {
   std::vector<std::string> ls;
   string path, folder;
   fname.insert(0, string("F"));
@@ -121,19 +121,19 @@ void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
   }
   *f_len = resp.f_len;
   *read_ready = resp.has_more;
-  cout << "WARNING: DOWNLOAD HAS MORE? " << (int)*read_ready << endl; 
+  cout << "WARNING: DOWNLOAD HAS MORE? " << (int)*read_ready << endl;
 }
 
 bool upload_next_part(int* total_body_read, std::string& filename, int sock,
                       std::string& boundary, std::string& username,
-                      string& directory_path, BackendRelay* BR, bool mac_cli, 
-                      char * body) {
+                      string& directory_path, BackendRelay* BR, bool mac_cli,
+                      char* body) {
   std::string buff_str;
   if (!mac_cli) {
     int buffer_size;
     char* buffer = new char[MAX_CHUNK_PLUS_SIZE + 1];
     while ((buffer_size = read(sock, buffer, MAX_CHUNK_PLUS_SIZE)) ==
-          MAX_CHUNK_PLUS_SIZE) {
+           MAX_CHUNK_PLUS_SIZE) {
       buffer[buffer_size] = '\0';
       buff_str += buffer;
     }
@@ -149,7 +149,7 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   size_t buff_str_size = buff_str.size();
   bool ret_val;
   // Case 1: this data is not the last part, because it ends with boundary
-  if (begin_boundary + boundary.size() + 2== buff_str_size) {
+  if (begin_boundary + boundary.size() + 2 == buff_str_size) {
     ret_val = true;
   }
   // Case 2: last part, ends with boundary plus "--"
@@ -193,6 +193,6 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   confirmed =
       BR->sendChunk(username, directory_path, filename,
                     data.substr(CHUNK_SIZE * chunk_id), size_yet_to_send);
-  cout << "Last Chunk: " << confirmed  << "with retval: " << ret_val << endl;
+  cout << "Last Chunk: " << confirmed << "with retval: " << ret_val << endl;
   return ret_val;
 };

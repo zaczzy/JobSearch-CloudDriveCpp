@@ -377,6 +377,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string user = c_user + strlen("user=");
     string pass = c_pass + strlen("pass=");
 
+    // bound to reconnect
     pthread_mutex_lock(&(BR->mutex_sock));
     BR->setNewBackendSock(user);
     pthread_mutex_unlock(&(BR->mutex_sock));
@@ -387,7 +388,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
       // strlen("adduser=");
       string s_addCmd = "ADD " + user + " " + pass;
       pthread_mutex_lock(&(BR->mutex_sock));
-      BR->sendCommand(s_addCmd);
+      BR->sendCommand(s_addCmd, user);
       pthread_mutex_unlock(&(BR->mutex_sock));
 
       // redirect to login page
@@ -400,7 +401,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
 
     // Authenticate
     string s_authCmd = "AUTH " + user + " " + pass;
-    string authResult = BR->sendCommand(s_authCmd);
+    string authResult = BR->sendCommand(s_authCmd, user);
     string okerr = authResult.substr(0, 3);
     // if invalid credentials
 
