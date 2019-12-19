@@ -35,7 +35,7 @@ void process_command(string& command, int fd) {
   //Filter dead servers
   vector<server_netconfig> filtered_servers;
   for (auto& server: servers)
-	  if (server.status == Dead)
+	  if (server.status != Dead)
 		  filtered_servers.push_back(server);
 
   srand(time(0));
