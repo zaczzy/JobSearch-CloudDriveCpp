@@ -130,11 +130,6 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 	}
 }
 
-/*
- * Asks master node for new backend server.
- */
-int fetchNewBackendSock(int masterSock, string username) {
-}
 
 
 /*
