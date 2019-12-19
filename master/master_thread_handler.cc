@@ -71,11 +71,10 @@ int my_handler(int fd) {
 	  tmp.second = (size_t) id_stuff[1];
 	  sock2servid[fd] = tmp;
 	  // mark backend as alive
-	  groups[sock2servid[fd].first][sock2servid[fd].second].status = Alive;
+	  groups[tmp.first][tmp.second - 1].status = Alive;
   }
   char *buffer = new char[BUFFER_SIZE + 1];
   int bytes_read;
-
 
 
   //  main loop process command
@@ -84,8 +83,9 @@ int my_handler(int fd) {
     if (bytes_read <= 0) {
       // ending connection
       if (bytes_read == 0) {
-        cout << "client closed connection" << endl;
-        groups[sock2servid[fd].first][sock2servid[fd].second].status = Dead;
+        cout << "backend closed connection" << endl;
+        cout << "the backend that died was 😆group" << sock2servid[fd].first << " and id " << sock2servid[fd].second << endl;
+        groups[sock2servid[fd].first][sock2servid[fd].second - 1].status = Dead;
       } else {
         perror("read failed");
       }
