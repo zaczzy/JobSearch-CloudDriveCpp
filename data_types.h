@@ -29,7 +29,7 @@
 #define CHUNK_SIZE 2048         // WIll change this later
 #define MAX_EMAILS 10           // WIll change this later
 #define GOSSIP_OFFSET 7000
-#define LOG_LIMIT 0
+#define LOG_LIMIT 3
 
 #define LOG_SEQ_NO_FILE "log_seq_no.txt"
 

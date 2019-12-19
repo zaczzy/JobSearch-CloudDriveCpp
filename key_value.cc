@@ -204,13 +204,13 @@ private:
       ar & type;
       if (type == MAIL)
       {
-        file_content* f_content = (file_content*)content;
-        ar & f_content;
+        mail_content* m_content = (mail_content*)content;
+        ar & m_content;
       }
       else if (type == DRIVE)
       {
-        mail_content* m_content = (mail_content*)content;
-        ar & m_content;
+        file_content* f_content = (file_content*)content;
+        ar & f_content;
       }
   }
 
@@ -220,15 +220,15 @@ private:
       ar & type;
       if (type == MAIL)
       {
-        file_content* f_content;
-        ar & f_content;
-        content = f_content;
-      }
-      else if (type == DRIVE)
-      {
         mail_content* m_content;
         ar & m_content;
         content = m_content;
+      }
+      else if (type == DRIVE)
+      {
+        file_content* f_content;
+        ar & f_content;
+        content = f_content;
       }
   }
 
@@ -260,7 +260,6 @@ typedef struct
 typedef std::unordered_map<std::string, tablet_column> map_tablet_row;
 typedef struct
 {
-    std::string email_id;
     std::string password;
     unsigned long num_emails;
     unsigned long num_files;
@@ -272,7 +271,6 @@ typedef struct
    void serialize(Archive & ar, const unsigned int version)
    {
        // Simply list all the fields to be serialized/deserialized.
-       ar & email_id;
        ar & password;
        ar & num_emails;
        ar & num_files;
@@ -283,11 +281,14 @@ typedef struct
 
 typedef std::unordered_map<std::string, tablet_row> map_tablet;
 
-extern bool verbose;
 
 /** Map to store key value pairs */
 map_tablet tablet; 
+extern bool verbose;
 
+void serialize_tablet_to_file(const char* filepath);
+
+#if 1
 void clear_tablet()
 {
     tablet.clear();
@@ -311,6 +312,8 @@ int add_root_folder(map_tablet::iterator itr)
         printf("num cols: %lu\n", itr->second.columns.size());
     content->type = DIRECTORY_TYPE;
     content->num_files = 0;
+    content->file_len = 0;
+    content->file_data = NULL;
     content->entry = new std::vector<fd_entry>();
 
     col.content = content; 
@@ -806,6 +809,8 @@ bool store_file(put_file_request* request)
         strncpy(data, request->data, request->chunk_len);
 
         content->file_len = request->chunk_len;
+        content->num_files = 0;
+        content->entry = NULL;
         content->file_data = data;
 
         col.content = content; 
@@ -905,8 +910,10 @@ int create_folder(create_folder_request* request)
      if (verbose)
         printf("num cols: %lu\n", itr->second.columns.size());
      content->type = DIRECTORY_TYPE;
-        content->num_files = 0;
-     content->entry = new std::vector<fd_entry>();
+    content->num_files = 0;
+    content->file_data = NULL;
+    content->file_len = 0;
+    content->entry = new std::vector<fd_entry>();
 
         col.content = content; 
     /** Add the entry to the map */
@@ -1504,28 +1511,7 @@ bool process_command(char* command, int len, int fd)
 
    return FAILURE;
 }
-
-#ifdef SERIALIZE
-void serialize_tablet_to_file(const char* filepath)
-{
-   std::ofstream keyfs(filepath);
-   std::string str ="ritika";
-   boost::archive::text_oarchive oa(keyfs);
-   oa << str;
-   keyfs.close();
-
-}
-
-map_tablet deserialize_tablet_from_file(char* filepath)
-{
-   map_tablet new_tablet;
-   std::ifstream ifs(filepath);
-   boost::archive::text_iarchive ia(ifs);
-   ia >> new_tablet;
-   ifs.close();
-
-   return new_tablet;
-}
+#endif
 
 void take_checkpoint()
 {
@@ -1537,6 +1523,7 @@ void take_checkpoint()
     if (verbose)
         printf("====Taken checkpoint successfully====");
 
+#if 1
     /** Read and update checkpoint version no */
     FILE* file = fopen(checkpoint_ver_file, "r+");
 
@@ -1578,8 +1565,10 @@ void take_checkpoint()
         if (verbose)
             printf("Couldn't read version number. Error : %s\n", strerror(errno));
     }
+#endif
 }
 
+#if 0
 void write_checkpoint_to_file(char* data, unsigned long size)
 {
     /** Open the checkpoint file in truncate mode */
@@ -1649,6 +1638,7 @@ void ask_primary(unsigned short group_no)
     // TODO: Update primary IP and port
     //primary_ip 
 }
+#endif
 
 // void send_new_log(unsigned long long seq_no)
 // {
@@ -1721,4 +1711,88 @@ void ask_primary(unsigned short group_no)
 // }
 
 
+#ifdef SERIALIZE
+void serialize_tablet_to_file(const char* filepath)
+{
+   std::ofstream keyfs(filepath);
+   boost::archive::text_oarchive oa(keyfs);
+   oa << tablet;
+   keyfs.close();
+
+}
+
+void deserialize_tablet_from_file(char* filepath)
+{
+   //map_tablet new_tablet;
+   std::ifstream ifs(filepath);
+   boost::archive::text_iarchive ia(ifs);
+   ia >> tablet;
+   ifs.close();
+
+   //return new_tablet;
+}
+
+void recover_from_checkpoint()
+{
+    deserialize_tablet_from_file(checkpoint_file);
+}
+
+#if 0
+
+int main()
+{
+    /** Populate map with data */
+    tablet_row row;
+    row.password = std::string("pass");
+    row.num_emails = 0;
+    row.num_files = 1;
+    
+    tablet_row row2;
+    row2.password = std::string("pacsdcs");
+    row2.num_emails = 0;
+    row2.num_files = 0;
+    
+    tablet_column col;
+    col.type = DRIVE;
+
+    file_content f_content;
+    f_content.type = FILE_TYPE;
+    f_content.file_len = 6;
+    f_content.num_files = 0;
+    f_content.entry = NULL; 
+    f_content.file_data = (char*)malloc(6);
+    strcpy(f_content.file_data, "abcde");
+    
+    col.content = &f_content;
+    row.columns.insert(std::make_pair(std::string("col1"), col));
+
+    tablet.insert(std::make_pair("row1", row));
+    tablet.insert(std::make_pair("row2", row2));
+
+    take_checkpoint();
+    //serialize_tablet_to_file("map.serial");
+    
+    deserialize_tablet_from_file("map.serial");
+
+    map_tablet::iterator it;
+    for(it = tablet.begin(); it != tablet.end(); it++)
+    {
+        printf("row key : %s\n", it->first.c_str());
+        printf("password: %s\n", it->second.password.c_str());
+        printf("num emails: %lu\n", it->second.num_emails);
+        printf("num files: %lu\n", it->second.num_files);
+
+        map_tablet_row::iterator it_col;
+
+        for (it_col = it->second.columns.begin(); it_col != it->second.columns.end(); it_col++)
+        {
+            printf("col key: %s\n", it_col->first.c_str());
+            printf("type val : %u\n", it_col->second.type);
+            file_content* content = (file_content*)it_col->second.content;;
+            printf("col content: file len : %lu\n", content->file_len);
+            printf("col content: file data : %s\n", content->file_data);
+        }
+    }
+}
+#endif
 #endif

@@ -313,8 +313,11 @@ void *listen_peer(void *arg)
      block_flag = 0;
    }  else if(!strcasecmp((char *)log_struct.data, "+CP_ACK")) {
         send_count--;
-        if(send_count == 0)
-            is_checkpoint_block = 0;
+        printf("send count checkpoint: %d\n", send_count);
+            if(send_count == 0) {
+                is_checkpoint_block = 0;
+                printf("checkpoint unblocked on 0 send count\n");
+            }
 
    } else if(!strcasecmp((char *)log_struct.data, "+CHECKPOINT")) {
        printf("received CHECKPOINT at server_id %d\n", myserver_id);
@@ -525,7 +528,7 @@ for(int i = 0; i < num_gserver_fd; i++) {
 
     glbl_seq_num++;
 
-    if(get_log_sequence_no()  > LOG_LIMIT) {
+    if(get_log_sequence_no()  % LOG_LIMIT == 0) {
 
         checkpoint_struct.primaryId = myserver_id;
         checkpoint_struct.glbl_seq_num = glbl_seq_num;
@@ -536,19 +539,22 @@ for(int i = 0; i < num_gserver_fd; i++) {
         for(sid2cfditr = sid2cfd.begin(); sid2cfditr != sid2cfd.end(); ++sid2cfditr) {
 
             if(sid2cfditr->first != myserver_id) {
+
+                send_count++;
                 send_bytes = send(gserver_fd[sid2cfditr->first], &checkpoint_struct, sizeof(logging_consensus), 0);
 
                 if(send_bytes < sizeof(logging_consensus)) 
                 {
                     perror("Couldn't send message to peer1!");
+                    send_count--;
                 }
-                send_count++;
             }
         }
         printf("Primary takes checkpoint\n");
+        is_checkpoint_block = 1;
         take_checkpoint();
-        int is_checkpoint_block = 1;
-        while(is_checkpoint_block == 1) sleep(1);
+        while(is_checkpoint_block == 1) {printf("cp blocked\n"); sleep(1);} 
+        printf("Checkpoint unblocked\n");
         glbl_seq_num++;
     }
 

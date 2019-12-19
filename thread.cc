@@ -40,13 +40,13 @@ void* read_commands(void* args)
     char buffer[MAX_REQUEST_SIZE];
     while(!terminate)
     {
+        //printf("terminate : %d\n", terminate);
         memset(buffer, 0, MAX_REQUEST_SIZE);
 
-	int write_op = 0;
+	    int write_op = 0;
         /** Read the command from the client */
         int ret;
         ret = read(*client_fd, buffer, MAX_REQUEST_SIZE);
-
 
         if (ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNRESET)
         {
@@ -78,6 +78,11 @@ void* read_commands(void* args)
             //if (close_connection)
             //    goto term;
 
+        }
+        else
+        {
+            if (terminate)
+                printf("terminate : %d", terminate);
         }
     }
 

@@ -18,5 +18,6 @@ int create_folder(create_folder_request* request);
 int delete_folder(delete_folder_content_request* request);
 void take_checkpoint();
 void recover();
+void recover_from_checkpoint();
 
 #endif

@@ -34,9 +34,9 @@
 
 bool verbose = false;
 volatile bool terminate = false;
+volatile bool restart = false;
 char ip_address[IP_ADDRESS_LEN];
 int server_port_no;
-bool restart = true;
 unsigned short server_no, group_no;
 extern int master_sockfd; 
 
@@ -79,6 +79,7 @@ void* run_storage_server(void *params)
         exit(EXIT_FAILURE);
 
     /** Run until terminated by admin*/
+restarted:
     while(!terminate)
     {
         int *client_fd = new int;
@@ -120,10 +121,13 @@ void* run_storage_server(void *params)
     }
 
 term:
-    close(server_fd);
-    if (verbose)
-        printf("Closing storage server\n");
-    pthread_exit(NULL);
+    while(!restart)
+        ;
+    goto restarted;
+    //close(server_fd);
+    //if (verbose)
+    //    printf("Closing storage server\n");
+    //pthread_exit(NULL);
 
     return NULL;
 }
@@ -478,24 +482,27 @@ void* read_admin_commands(int client_fd)
         if (strncmp(buffer, "disable", strlen("disable")) == 0)
         {
             terminate = true;
+
+            if (verbose)
+                printf("set terminate to %d\n", terminate);
             
             /** Clear the map */
             clear_tablet();
 
             /** Close the socket to master */
             close(master_sockfd);
-
-            /** TODO: Free locks if acquiree any */
         }
         else if (strncmp(buffer, "restart", strlen("restart")) == 0)
         {
             terminate = false;
+            restart = true;
 
             /** Replay logs from log file */
             replay_log();
+            //recover_from_checkpoint();
 
             /** Open the connection to master */
-            create_socket_for_master();
+            //create_socket_for_master();
             
             /** Run the main listener thread again */
             //pthread_t thread;
