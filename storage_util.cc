@@ -48,6 +48,9 @@ void request_file_names(std::vector<std::string>& filenames,
       BR->sendFolderRequest(&req, MAX_FOLDER_INFO_LENGTH);
   if (!response_line.compare("")) return;
   split(filenames, response_line, '~');
+  for (string& str: filenames) {
+    cout << "GOT NAME: <" << str << ">" << endl;
+  }
 }
 
 void generate_display_list(std::string& to_replace,
@@ -118,25 +121,28 @@ void download_file_chunk(std::string& chunk, bool* read_ready, size_t* f_len,
   }
   *f_len = resp.f_len;
   *read_ready = resp.has_more;
+  cout << "WARNING: DOWNLOAD HAS MORE? " << (int)*read_ready << endl; 
 }
 
 bool upload_next_part(int* total_body_read, std::string& filename, int sock,
                       std::string& boundary, std::string& username,
-                      string& directory_path, BackendRelay* BR) {
-  char* buffer = new char[MAX_CHUNK_PLUS_SIZE + 1];
-  int buffer_size;
+                      string& directory_path, BackendRelay* BR, bool mac_cli, 
+                      char * body) {
   std::string buff_str;
-  while ((buffer_size = read(sock, buffer, MAX_CHUNK_PLUS_SIZE)) ==
-         MAX_CHUNK_PLUS_SIZE) {
+  if (!mac_cli) {
+    int buffer_size;
+    char* buffer = new char[MAX_CHUNK_PLUS_SIZE + 1];
+    while ((buffer_size = read(sock, buffer, MAX_CHUNK_PLUS_SIZE)) ==
+          MAX_CHUNK_PLUS_SIZE) {
+      buffer[buffer_size] = '\0';
+      buff_str += buffer;
+    }
     buffer[buffer_size] = '\0';
     buff_str += buffer;
+    delete[] buffer;
+  } else {
+    buff_str = body;
   }
-  buffer[buffer_size] = '\0';
-  buff_str += buffer;
-  delete[] buffer;
-
-  // DEBUG PRINT
-  cerr << "C: [" << buff_str << "]" << endl;
 
   // verify that boundary is at the end
   size_t begin_boundary = buff_str.rfind(boundary);
@@ -168,7 +174,7 @@ bool upload_next_part(int* total_body_read, std::string& filename, int sock,
   data_start_inx = buff_str.find("\r\n\r\n", fname_end_inx) + 4;
   data_end_inx = buff_str.find("\r\n", data_start_inx);
   std::string data =
-      buff_str.substr(data_start_inx, data_end_inx - data_start_inx - 1);
+      buff_str.substr(data_start_inx, data_end_inx - data_start_inx);
   buff_str.clear();
   *total_body_read += data.size();
   // got username, got directory_path, start send

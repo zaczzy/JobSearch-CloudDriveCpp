@@ -60,7 +60,8 @@ string CookieRelay::sendCommand(string command) {
 	write(sock, c_command, command.length());
 	if (VERBOSE)
 		fprintf(stderr, "[%d][COOK] S: %s\n", sock, c_command);
-	int i = read(sock, buff, sizeof(buff));
+	int i = read(sock, buff, BUFF_SIZE - 1);
+	buff[i] = 0;
 	if (VERBOSE)
 		fprintf(stderr, "[%d][COOK] LB: %s\n", sock, buff);
 	string result = buff;

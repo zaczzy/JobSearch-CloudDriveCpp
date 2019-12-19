@@ -85,7 +85,7 @@ void readConfig_lb(char *configFile) {
 /*
  * Send a message to the client over provided socket.
  */
-string sendCommand(int sock, char *command) {
+string sendCommand(int sock, const char *command) {
 	char buff[BUFF_SIZE];
 	memset(buff, 0, sizeof(buff));
 	if (VERBOSE)
@@ -100,10 +100,12 @@ string sendCommand(int sock, char *command) {
 }
 
 string getFirstFreeServer(vector<int> loads) {
-	for (int i=0; i<loads.size(); i++)
+	for (int i=0; i<(int)loads.size(); i++)
 		if (loads[i] < MAX_WEB_CLNT)
 			return fe_fwdAddrs[i];
-	//if here, this is bad (all servers full)
+	// if here, this is bad (all servers full)
+	cerr << "NOPE, OUT" << endl;
+	exit(-1);
 }
 
 void redirect(int clntSock, string fwdAddr){
@@ -145,7 +147,7 @@ void *cookieThreadFunc(void *args) {
 			cookie2Browser[++latestCookie] = payload;
 			string msg = to_string(latestCookie);
 			char *m = (char *)msg.c_str();
-			int i = write(clntSock, m, strlen(m));
+			write(clntSock, m, strlen(m));
 			if (VERBOSE)
 				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
 			//check i == 0
@@ -157,7 +159,7 @@ void *cookieThreadFunc(void *args) {
 			if (cookie2Browser.find(cookie) != cookie2Browser.end())
 				msg += cookie2Browser[cookie];
 			char *m = (char *)msg.c_str();
-			int i = write(clntSock, m, strlen(m));
+			write(clntSock, m, strlen(m));
 			if (VERBOSE)
 				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
 		}
@@ -167,7 +169,7 @@ void *cookieThreadFunc(void *args) {
 			cookie2Browser.erase(cookie);
 			string msg = "ok";
 			char *m = (char *)msg.c_str();
-			int i = write(clntSock, m, strlen(m));
+			write(clntSock, m, strlen(m));
 			if (VERBOSE)
 				fprintf(stderr, "[%d][COOK] LB: {%s}\n", clntSock, m);
 		}
@@ -179,6 +181,7 @@ void *cookieThreadFunc(void *args) {
 //	S.backbone();
 	socks.erase(clntSock);
 	close(clntSock);
+	return NULL; //zac terminates
 }
 
 int main(int argc, char *argv[])

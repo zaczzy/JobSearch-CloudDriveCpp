@@ -153,6 +153,7 @@ void *webThreadFunc(void *args){
 //	close(clntSock); //socket closed at bottom of backbone()
 	socks.erase(clntSock);
 	webThreads.erase(pthread_self());
+	return NULL; // zac added
 }
 
 /*
@@ -168,6 +169,7 @@ void *controlThreadFunc(void *args){
 	close(clntSock);
 	socks.erase(clntSock);
 	controlThreads.erase(pthread_self());
+	return NULL; // zac added
 }
 
 /*

@@ -261,12 +261,12 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
     vector<string> filenames;
-    cout << "WARNING <" << path << "> foldername<" << folder << ">" << endl; 
     request_file_names(filenames, path, username, folder, BR);
     string to_replace;
     generate_display_list(to_replace, URI, filenames);
     replace_all_occurrences(HTML, string("{{path}}"), URI);
     replace_first_occurrence(HTML, string("{{file_names}}"), to_replace);
+    cout << "path is: <" << path << "> foldername<" << folder << ">" << endl;
     if (!path.compare("/r00t")) {
       path = "/storage.html";
     } else {
@@ -277,25 +277,20 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     string URI = requestURI.substr(9);  // "/r00t/f1"
     string path, fname;                 // "/r00t", "f1"
     split_filename(URI, path, fname);
-    // chunk download start
     // check if file exists on the BR
     bool read_ready = request_file_download(username, path, fname, BR);
     if (!read_ready) {
-      cerr << "File not found on BR!" << endl;
+      cerr << "File not found on Backend!" << endl;
       sendStatus(404);
       return;
     }
     string chunk;
     size_t f_len;
-    // modify in-place
-    download_file_chunk(chunk, &read_ready, &f_len, BR);
-    sendFileHeaders(fname, f_len);
     do {
-      sendMsg(chunk);
       download_file_chunk(chunk, &read_ready, &f_len, BR);
+      sendFileHeaders(fname, f_len);
+      sendMsg(chunk);
     } while (read_ready);
-    // TODO: careful about the last chunk
-    sendMsg(chunk);
     return;
   } else {
     // Resource not found
@@ -317,16 +312,19 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string URI = requestURI.substr(7);  // "/r00t/dir1" or "/r00t"
     boundary.insert(0, "--");
     bool should_read_next_part = true;
+    string body_str = body;
+    bool mac_cli = body_str.find(boundary) != string::npos;
+    body_str.clear();
     int total_body_read = 0;
     string upload_fname;
     while (should_read_next_part) {
       should_read_next_part = upload_next_part(
-          &total_body_read, upload_fname, sock, boundary, username, URI, BR);
+          &total_body_read, upload_fname, sock, boundary, username, URI, BR, mac_cli, body);
     }
     // verify the content_length is indeed the length we have read
     if (content_length != 0) {
-      if (total_body_read == content_length ^ should_read_next_part) {
-        cerr << "HandlePOST: Content-Length is said to be " << content_length
+      if ((total_body_read == content_length) ^ should_read_next_part) {
+        cerr << "[WARN] HandlePOST: Content-Length is said to be " << content_length
              << " but the total length of " << upload_fname << " is actually "
              << total_body_read << endl;
       }

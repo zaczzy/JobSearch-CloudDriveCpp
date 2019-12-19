@@ -402,7 +402,7 @@ int store_email(put_mail_request* request)
     content->body_len = request->email_len;
 
     if (verbose)
-        printf("email body : %s \n subject: %s\n email len : %d\n", request->email_body, request->header.subject, request->email_len);
+        printf("email body : %s \n subject: %s\n email len : %lu\n", request->email_body, request->header.subject, request->email_len);
     
     col.content = content; 
     /** Add the entry to the map */
@@ -538,7 +538,7 @@ int get_mail_body(get_mail_body_request* request, get_mail_body_response* respon
         response->mail_body_len = content->body_len;
 
         if (verbose)
-            printf("email body : %s \n email len : %d\n", response->mail_body, response->mail_body_len);
+            printf("email body : %s \n email len : %lu\n", response->mail_body, response->mail_body_len);
     }
     else /** column doesn't exist */
     {
@@ -653,6 +653,9 @@ int get_file_data(get_file_request* request, int fd)
             }
             response.f_len = content->file_len;
             send_msg_to_socket((char*)(&response), sizeof(response), fd);
+
+            if (verbose)
+                printf("sent file : %s\n", full_path);
         }
     }
     else /** column doesn't exist */
@@ -932,7 +935,7 @@ int create_folder(create_folder_request* request)
 
         col.content = content; 
     /** Add the entry to the map */
-    itr->second.columns.insert(std::make_pair(std::string("/r00t"), col));
+    itr->second.columns.insert(std::make_pair(std::string(column), col));
 
 #if 0
         
@@ -954,8 +957,11 @@ int create_folder(create_folder_request* request)
             file_content* content = (file_content*)(parent_itr->second.content);
             content->num_files++;
             fd_entry entry;
+            memset(&entry, 0, sizeof(entry));
             entry.type = DIRECTORY_TYPE;
             strncpy(entry.name, request->folder_name, strlen(request->folder_name));
+            if (verbose)
+                printf("Added folder %s to its parent folder %s\n", entry.name, parent_itr->first.c_str());
             content->entry->push_back(entry);
         }
 
@@ -968,7 +974,7 @@ int create_folder(create_folder_request* request)
 int get_folder_content(get_folder_content_request* request, int fd, char** response_str)
 {
     char* row = request->username;
-
+    *response_str = NULL;
     if (verbose)
     printf("Getting folder contents for dir path  : %s and folder name : %s\n", request->directory_path, request->folder_name);
     /** Concatenate the path and name */
@@ -1002,14 +1008,18 @@ int get_folder_content(get_folder_content_request* request, int fd, char** respo
         file_content* content = (file_content*)col->content;
         //file_content* content = (file_content*)(row_itr->content);
 
-        printf("type : %d num_files: %d\n", content->type, content->num_files);
+        printf("type : %d num_files: %lu\n", content->type, content->num_files);
         std::string content_list;
 
         if (verbose)
             printf("content entry vector size : %lu\n", content->entry->size());
             
+        if (verbose)
+            printf("contents of folder : %s with directory path : %s\n", request->folder_name, request->directory_path);
         for(auto it = content->entry->begin(); it != content->entry->end(); it++)
         {
+            if (verbose)
+                printf("%s\n", it->name);
             content_list += ((it->type == FILE_TYPE) ? 'F' : 'D') + std::string(it->name) + '~';
         }
         char* response;
@@ -1415,8 +1425,10 @@ bool process_command(char* command, int len, int fd)
         char* response;
         int res = get_folder_content(folder_request, fd, &response);
 
-        if (verbose)
+        if (verbose && response != NULL)
             printf("sending response to get folder content : %s\n", response);
+        else
+            printf("sending response to get folder content NULL\n");
         if (res == SUCCESS)
         {
             send_msg_to_socket(response, strlen(response), fd);
@@ -1535,7 +1547,7 @@ bool process_command(char* command, int len, int fd)
 }
 
 #ifdef SERIALIZE
-void serialize_tablet_to_file(char* filepath)
+void serialize_tablet_to_file(const char* filepath)
 {
    std::ofstream ofs(filepath);
    boost::archive::text_oarchive oa(ofs);
@@ -1667,10 +1679,10 @@ void ask_primary(unsigned short group_no)
     sprintf(request, "%02huprimary", group_no);
 
     if (verbose)
-        printf("primary no request len : %u data : %s\n", strlen(request), request);
+        printf("primary no request len : %lu data : %s\n", strlen(request), request);
 
     int bytes = write(master_sockfd, request, strlen(request));
-
+    printf("bytes: %d", bytes);
     char buff[64];
     bytes = read(master_sockfd, buff, sizeof(buff));
 
@@ -1678,75 +1690,75 @@ void ask_primary(unsigned short group_no)
     //primary_ip 
 }
 
-void send_new_log(unsigned long long seq_no)
-{
+// void send_new_log(unsigned long long seq_no)
+// {
     
-}
+// }
 
-void send_checkpoint()
-{
+// void send_checkpoint()
+// {
 
-}
+// }
 
-void recover()
-{
-    /** Ask primary from master */
-    // TODO: get primary result ?
-    ask_primary(group_no);
+// void recover()
+// {
+//     /** Ask primary from master */
+//     // TODO: get primary result ?
+//     ask_primary(group_no);
 
-    /** Send the log sequence no and checkpoint version no to primary */
-    recovery_req s_no;
+//     /** Send the log sequence no and checkpoint version no to primary */
+//     recovery_req s_no;
    
-    strncpy(s_no.prefix, "seq_no", strlen("seq_no"));
-    s_no.log_sequence_no = get_log_sequence_no();
-    s_no.checkpoint_version_no = get_checkpoint_version_no();
-    // TODO: Send this structure to primary
+//     strncpy(s_no.prefix, "seq_no", strlen("seq_no"));
+//     s_no.log_sequence_no = get_log_sequence_no();
+//     s_no.checkpoint_version_no = get_checkpoint_version_no();
+//     // TODO: Send this structure to primary
 
-    /** Read the response of primary */
-    recovery_resp* res;
-    // TODO: Read the response
+//     /** Read the response of primary */
+//     recovery_resp* res;
+//     // TODO: Read the response
 
-    if (res->ver_no_match && res->seq_no_match)
-    {
-        /** Just replay the existing log */
-        replay_log();
-    }
-    else if (res->ver_no_match && !res->seq_no_match)
-    {
-        /** Read the new log from primary */
-        char* data;
-        unsigned long size;
-        // TODO: read new log from primary
+//     if (res->ver_no_match && res->seq_no_match)
+//     {
+//         /** Just replay the existing log */
+//         replay_log();
+//     }
+//     else if (res->ver_no_match && !res->seq_no_match)
+//     {
+//         /** Read the new log from primary */
+//         char* data;
+//         unsigned long size;
+//         // TODO: read new log from primary
 
-        /** Append the new log to log file */
-        update_log_file(data, size);
+//         /** Append the new log to log file */
+//         update_log_file(data, size);
 
-        /** Replay the updated log file */
-        replay_log();
-    }
-    else if (!res->ver_no_match && !res->seq_no_match)
-    {
-        /** Read both the log and checkpoint from primary */
-        // TODO: Read the checkpoint, write as it is to the file
-        char* checkpoint;
-        unsigned long size;
-        write_checkpoint_to_file(checkpoint, size);
+//         /** Replay the updated log file */
+//         replay_log();
+//     }
+//     else if (!res->ver_no_match && !res->seq_no_match)
+//     {
+//         /** Read both the log and checkpoint from primary */
+//         // TODO: Read the checkpoint, write as it is to the file
+//         char* checkpoint;
+//         unsigned long size;
+//         write_checkpoint_to_file(checkpoint, size);
     
-        /** Populate tablet with checkpoint */
-        deserialize_tablet_from_file(CHECKPOINT_FILE);
+//         /** Populate tablet with checkpoint */
+//         deserialize_tablet_from_file(CHECKPOINT_FILE);
 
-        // TODO: Read the log
-        char* data;
-        unsigned long log_size;
-        update_log_file(data, log_size);
+//         // TODO: Read the log
+//         char* data;
+//         unsigned long log_size;
+//         update_log_file(data, log_size);
 
-        /** Replay the log */
-        replay_log();
-    }
+//         /** Replay the log */
+//         replay_log();
+//     }
 
-    /** Tell the master that I am ready to receive requests normally */
-    int bytes = write(master_sockfd, "ready", strlen("ready"));
-}
+//     /** Tell the master that I am ready to receive requests normally */
+//     int bytes = write(master_sockfd, "ready", strlen("ready"));
+// }
 
 
 #endif
