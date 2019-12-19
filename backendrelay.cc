@@ -114,7 +114,6 @@ string BackendRelay::sendFolderRequest(const get_folder_content_request *req,
   write(backendSock, req, sizeof(*req));
   char *buff = new char[max_resp_len];
   int buff_size = read(backendSock, buff, max_resp_len);
-  cout << "MOTHER LOOK AT THIS: buff_size😄" << buff_size << endl;
   // reconnect
   while (buff_size <= 0) {
     pthread_mutex_lock(&mutex_sock);

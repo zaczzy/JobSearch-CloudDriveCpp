@@ -35,8 +35,8 @@ int SingleConnServerControl::sendMsg(string msg) {
 	int i = write(sock, m, strlen(m));
 	if (shutdownFlag || i < 0)
 		die("Shutdown flag or write fail", sock);
-	if (VERBOSE)
-		fprintf(stderr, "[%d][CTRL] S: %s\n", sock, m);
+	// if (VERBOSE)
+	// 	fprintf(stderr, "[%d][CTRL] S: %s\n", sock, m);
 	return 1;
 }
 
