@@ -492,61 +492,18 @@ void* read_admin_commands(int client_fd)
 
             /** Close the socket to master */
             close(master_sockfd);
-        }
-        else if (strncmp(buffer, "restart", strlen("restart")) == 0)
-        {
-            terminate = false;
-            restart = true;
-
-            /** Replay logs from log file */
-            replay_log();
-            //recover_from_checkpoint();
-
-            /** Open the connection to master */
-            //create_socket_for_master();
-            
-            /** Run the main listener thread again */
-            //pthread_t thread;
-            //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
-
-            /** Run the main listener thread again */
-            //pthread_t thread;
-            //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
-
-            //if (iret1 != 0)
-            //{
-            //    if  (verbose)
-            //        fprintf(stderr, "Error creating thread\n");
-            //    exit(EXIT_FAILURE);
-            //}
-
-            /** TODO: Free locks if acquiree any */
             disabled_flag = 1;
-        }
+        } 
         else if (strncmp(buffer, "restart", strlen("restart")) == 0)
         {
           terminate = false;
+          restart = true;
 
           /** Replay logs from log file */
           replay_log();
 
           /** Open the connection to master */
           create_socket_for_master();
-
-          /** Run the main listener thread again */
-          //pthread_t thread;
-          //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
-
-          /** Run the main listener thread again */
-          //pthread_t thread;
-          //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
-
-          //if (iret1 != 0)
-          //{
-          //    if  (verbose)
-          //        fprintf(stderr, "Error creating thread\n");
-          //    exit(EXIT_FAILURE);
-          //}
           disabled_flag = 0;
 
           long long mylog_seq = get_log_sequence_no();

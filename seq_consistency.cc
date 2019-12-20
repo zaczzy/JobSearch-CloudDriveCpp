@@ -465,7 +465,7 @@ void *primary_sequentialize(void *arg) {
         peer_count++;
     }
     
-    if(peer_count > 0) {
+  //  if(peer_count > 0) {
       ackitr = acktrack.find(log_struct.requestor_id);
       if(ackitr == acktrack.end()) {
         map<int, int> temp_m;
@@ -474,7 +474,7 @@ void *primary_sequentialize(void *arg) {
       } else {
         (ackitr->second).insert(std::pair<int, int>(log_struct.seq_num, peer_count)) ;
       }
-    }
+   // }
 
     ackitr = acktrack.find(log_struct.requestor_id);
     
@@ -555,11 +555,12 @@ for(int i = 0; i < num_gserver_fd; i++) {
         checkpoint_struct.seq_num = -1;
         memcpy(checkpoint_struct.data, log_checkpoint, strlen(log_checkpoint));
         send_count = 0;
+        is_checkpoint_block = 1;  /* Need to set the flag before take_checkpoint, else sync issues arise */
+        send_count += peer_count;
         for(sid2cfditr = sid2cfd.begin(); sid2cfditr != sid2cfd.end(); ++sid2cfditr) {
 
             if(sid2cfditr->first != myserver_id) {
 
-                send_count++;
                 send_bytes = send(gserver_fd[sid2cfditr->first], &checkpoint_struct, sizeof(logging_consensus), 0);
 
                 if(send_bytes < sizeof(logging_consensus)) 
@@ -571,13 +572,12 @@ for(int i = 0; i < num_gserver_fd; i++) {
         }
         printf("Primary takes checkpoint\n");
 
-        if(peer_count > 0) {        /* Used to ensure that it blocks on CP_ACK only if there are peers */
-          is_checkpoint_block = 1;  /* Need to set the flag before take_checkpoint, else sync issues arise */
+        //if(peer_count > 0) {        /* Used to ensure that it blocks on CP_ACK only if there are peers */
           take_checkpoint();
           while(is_checkpoint_block == 1) sleep(1);
-        } else {
+       /* } else {
           take_checkpoint();
-        }
+        }*/
         glbl_seq_num++;
     }
 
