@@ -32,16 +32,27 @@ int *client_fb_all_conns;
 map<int, string> msgs_to_send;
 void waitingForWork(int i) {
   while (!shouldTerminate.load()) {
-    {
-      unique_lock<mutex> stdout_lck(stdout_mutex);
-      cout << i << " Waiting " << endl;
-    }
     unique_lock<mutex> lck(worker_mutex_[i]);
     // check if should go back to sleep
     worker_conds[i].wait(lck, [i] { return worker_wakeup[i]; });
-    {
-      unique_lock<mutex> stdout_lck(stdout_mutex);
-      cout << i << " Running " << endl;
+    // check exists msg to send
+    if (msgs_to_send[i].size() != 0) {
+      {
+        unique_lock<mutex> stdout_lck(stdout_mutex);
+        cout << "IO thread " << i << " woke up, wants to write MSG "
+             << msgs_to_send[i] << endl;
+      }
+      write(client_fb_all_conns[i], msgs_to_send[i].c_str(),
+            msgs_to_send[i].size());
+      {
+        unique_lock<mutex> stdout_lck(stdout_mutex);
+        cout << "IO thread " << i << " wrote its MSG" << endl;
+      }
+    } else {
+      {
+        unique_lock<mutex> stdout_lck(stdout_mutex);
+        cout << "IO thread " << i << " woke up, sleeping now" << endl;
+      }
     }
     // turn self off
     worker_wakeup[i] = false;
@@ -50,14 +61,13 @@ void waitingForWork(int i) {
 static void shutdown_server() {
   shouldTerminate = true;
   // wake up
-  // TODO: enable
-  // for (int i = 0; i < num_workers; i++) {
-  //   {
-  //     lock_guard<mutex> lck(worker_mutex_[i]);
-  //     worker_wakeup[i] = true;
-  //   }
-  //   worker_conds[i].notify_one();
-  // }
+  for (int i = 0; i < num_workers; i++) {
+    {
+      lock_guard<mutex> lck(worker_mutex_[i]);
+      worker_wakeup[i] = true;
+    }
+    worker_conds[i].notify_one();
+  }
 }
 static string readHTMLFromFile(string fname) {
   string HTML = "";
@@ -126,12 +136,12 @@ static void render_admin_page(int conn_fd) {
   string fsHTML;
   for (auto &fs : frontends) {
     if (fs.status == Alive) {
-      fsHTML += "<div>Frontend id " + to_string(fs.key) + " IP " +
+      fsHTML += "<div>Frontend id " + to_string(fs.key - (num_workers - (int)frontends.size())) + " IP " +
                 string(inet_ntoa(fs.serv_addr.sin_addr)) + " PORT " +
                 to_string((int)ntohs(fs.serv_addr.sin_port)) +
                 " status: Alive </div>";
     } else {
-      fsHTML += "<div>Frontend id " + to_string(fs.key) + " IP " +
+      fsHTML += "<div>Frontend id " + to_string(fs.key - (num_workers - (int) frontends.size())) + " IP " +
                 string(inet_ntoa(fs.serv_addr.sin_addr)) + " PORT " +
                 to_string((int)ntohs(fs.serv_addr.sin_port)) +
                 " status: Dead </div>";
@@ -167,15 +177,21 @@ static void render_admin_page(int conn_fd) {
   write(conn_fd, HTML.c_str(), HTML.size());
 }
 
-void disable_frontend(string body, int conn_fd) {
-  size_t id = (size_t) stoi(body.substr(strlen("fid=")));
+void disable_frontend(string body) {
+  size_t id = (size_t)stoi(body.substr(strlen("fid=")));
   size_t thread_id =
-      (size_t) frontends[id].key;  // location which thread is supposed to do the job
+      (size_t)frontends[id]
+          .key;  // location which thread is supposed to do the job
   msgs_to_send[thread_id] = "DISABLE";
   frontends[id].status = Dead;
+  {
+    lock_guard<mutex> lck(worker_mutex_[thread_id]);
+    worker_wakeup[thread_id] = true;
+  }
+  worker_conds[thread_id].notify_one();
 }
 
-void disable_backend(string body, int conn_fd) {
+static void disable_backend(string body) {
   size_t i_sep = body.find("&");
   string s_bgid = body.substr(0, i_sep);
   string s_bid = body.substr(i_sep + 1);
@@ -184,24 +200,33 @@ void disable_backend(string body, int conn_fd) {
   size_t thread_id = (size_t)groups[bgid][bid].key;
   msgs_to_send[thread_id] = "disable";
   groups[bgid][bid].status = Dead;
+  {
+    lock_guard<mutex> lck(worker_mutex_[thread_id]);
+    worker_wakeup[thread_id] = true;
+  }
+  worker_conds[thread_id].notify_one();
 }
 
-void restart_backend(string body, int conn_fd) {
+static void restart_backend(string body) {
   size_t i_sep = body.find("&");
   string s_bgid = body.substr(0, i_sep);
   string s_bid = body.substr(i_sep + 1);
   size_t bgid = (size_t)stoi(s_bgid.substr(strlen("bgid=")));
   size_t bid = (size_t)stoi(s_bid.substr(strlen("bid=")));
-  size_t thread_id = (size_t) groups[bgid][bid].key;
+  size_t thread_id = (size_t)groups[bgid][bid].key;
   msgs_to_send[thread_id] = "restart";
   groups[bgid][bid].status = Alive;
+  {
+    lock_guard<mutex> lck(worker_mutex_[thread_id]);
+    worker_wakeup[thread_id] = true;
+  }
+  worker_conds[thread_id].notify_one();
 }
-
 void sig_handler(int signo) {
   if (signo == SIGINT) {
     shutdown_server();
   } else {
-    printf("Unknown signal sent.\n");
+    cerr << "Unknown signal sent." << endl;
   }
 }
 #define REQUEST_MAX_LEN 100000
@@ -215,11 +240,11 @@ void process_request(int conn_fd) {
       // client disconnect
       break;
     }
-    buffer[buffer_size] = '\0';
+    buffer[buffer_size] = 0;
     string request = buffer;
     size_t firstSpace = request.find(" ");
     size_t secondSpace = request.find(" ", firstSpace + 1);
-    string URI = request.substr(firstSpace + 1, secondSpace);
+    string URI = request.substr(firstSpace + 1, secondSpace - firstSpace - 1);
     string body =
         request.substr(request.find("\r\n\r\n") + (string::size_type)4);
     if (request.substr(0, 3).compare("GET") == 0 &&
@@ -234,16 +259,19 @@ void process_request(int conn_fd) {
       favicon_binary.insert(0, header);
       write(conn_fd, favicon_binary.c_str(), favicon_binary.size());
     } else if (request.substr(0, 4).compare("POST") == 0 &&
-               URI.compare("/disable/frontend")) {
-      disable_frontend(body, conn_fd);
+               URI.compare("/disable/frontend") == 0) {
+      disable_frontend(body);
+      render_admin_page(conn_fd);
     } else if (request.substr(0, 4).compare("POST") == 0 &&
-               URI.compare("/disable/backend")) {
-      disable_backend(body, conn_fd);
+               URI.compare("/disable/backend") == 0) {
+      disable_backend(body);
+      render_admin_page(conn_fd);
     } else if (request.substr(0, 4).compare("POST") == 0 &&
-               URI.compare("/restart/backend")) {
-      restart_backend(body, conn_fd);
+               URI.compare("/restart/backend") == 0) {
+      restart_backend(body);
+      render_admin_page(conn_fd);
     } else {
-      fprintf(stderr, "anomaly.\n");
+      cerr << "anomaly." << endl;
       break;
     }
   }
@@ -257,7 +285,7 @@ int main(int argc, char *argv[]) {
   actions.sa_flags = 0;
   actions.sa_handler = sig_handler;
   if (sigaction(SIGINT, &actions, NULL)) {
-    fprintf(stderr, "Error: Cannot catch SIGINT\n");
+    cerr << "Error: Cannot catch SIGINT" << endl;
     return -1;
   }
 
@@ -272,13 +300,13 @@ int main(int argc, char *argv[]) {
       case '?':
         exit(EXIT_FAILURE);
       default:
-        fprintf(stderr, "Error: default case for options is hit\n");
+        cerr << "Error: default case for options is hit" << endl;
         return -1;
     }
   }
   // setup server config store
   if (argc != 3) {
-    fprintf(stderr, "Need 3 argument: instead got %d\n", argc);
+    cerr << "Need 3 argument: instead got " << argc << endl;
     return -1;
   } else {
     read_config_file(config_name);
@@ -294,8 +322,7 @@ int main(int argc, char *argv[]) {
     }
   }
   for (server_netconfig &element : frontends) {
-    cout << endl
-         << "FServer: " << element.key << ":"
+    cout << "FServer: " << element.key << ":"
          << "IP " << inet_ntoa(element.serv_addr.sin_addr) << " PORT "
          << ntohs(element.serv_addr.sin_port) << endl;
   }
@@ -313,39 +340,43 @@ int main(int argc, char *argv[]) {
   worker_wakeup = new bool[num_workers];
   worker_mutex_ = new mutex[num_workers];
   client_fb_all_conns = new int[num_workers];
+  memset(client_fb_all_conns, 0, sizeof(int) * (unsigned int)num_workers);
   // init all connections
   // backend first
   for (map<int, vector<server_netconfig>>::iterator it = groups.begin();
        it != groups.end(); it++) {
     for (server_netconfig &element : it->second) {
       int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-      client_fb_all_conns[element.key] = sock_fd;
       if (connect(sock_fd, (struct sockaddr *)&element.serv_addr,
                   sizeof(element.serv_addr)) != 0) {
-        printf("connection with the backend %d failed...\n", element.key);
+        cerr << "connection with the backend " << element.key << " failed..."
+             << endl;
+        element.status = Dead;
+      } else {
+        client_fb_all_conns[element.key] = sock_fd;
+        cout << "connection with the backend " << element.key << " established"
+             << endl;
       }
     }
   }
   // then frontend
   for (server_netconfig &element : frontends) {
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    client_fb_all_conns[element.key] = sock_fd;
     if (connect(sock_fd, (struct sockaddr *)&element.serv_addr,
                 sizeof(element.serv_addr)) != 0) {
-      printf("connection with the frontend %d failed...\n", element.key);
+      cerr << "connection with the frontend " << element.key << " failed..."
+           << endl;
+      element.status = Dead;
+    } else {
+      cout << "connection with the frontend " << element.key << " established"
+             << endl;
+      client_fb_all_conns[element.key] = sock_fd;
     }
   }
+
   for (int i = 0; i < num_workers; i++) {
-    client_fb_all_conns[i] = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_fb_all_conns[i] == -1) {
-      printf("socket creation failed...\n");
-      exit(0);
-    }
+    workers[i] = thread(waitingForWork, i);
   }
-  // TODO: enable
-  // for (int i = 0; i < num_workers; i++) {
-  //   workers[i] = thread(waitingForWork, i);
-  // }
 
   // init frontend server
   int sockfd, connfd;
@@ -365,7 +396,7 @@ int main(int argc, char *argv[]) {
   servaddr.sin_port = htons(PORT);
   int enable = 1;
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-    fprintf(stderr, "setsockopt(SO_REUSEADDR) failed\n");
+    cerr << "setsockopt(SO_REUSEADDR) failed" << endl;
 
   // Binding newly created socket to given IP and verification
   if ((bind(sockfd, (SA *)&servaddr, sizeof(servaddr))) != 0) {
@@ -394,7 +425,8 @@ int main(int argc, char *argv[]) {
     // After close the client connection when
     close(connfd);
     msgs_to_send.clear();
-    // enter key demo logic DISABLE PLZ
+
+    // // enter key demo logic DISABLE PLZ
     // char c = fgetc(stdin);
     // if (c == '\n') {
     //   // wake up
@@ -419,4 +451,5 @@ int main(int argc, char *argv[]) {
   delete[] worker_mutex_;
   delete[] worker_conds;
   delete[] workers;
+  delete[] client_fb_all_conns;
 }
