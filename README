@@ -1,0 +1,34 @@
+Team 24
+Ritika 
+Michal 
+Zach
+Nishanth
+
+How to run the code :
+DO a make in the root folder. It will make all the components of the system.
+
+There are following components of the system which need to be run simultaneously:
+1. Backend storage server
+$ ./storage_server config_master.txt group_no server_no -v
+Config file used: config_master.txt
+
+2. Frontend server
+$ ./fes server no
+config file used : config_fes.txt
+
+3. Load balancer
+$ ./lb
+config file used : config_fes.txt
+
+4. Front end on the browser
+localhost:7000
+
+5. Admin server
+config file used : config.txt
+The format is the same as the backend server but the port no should be different. 
+The port no needs to be calculated as (1200 * group_no) + server_no. This port number has to be added in the config file.
+Admin server needs to be made separately. So, go to admin folder and type make. And then run it using the following command:
+$ ./admin
+
+To run on the browser:
+localhost:6007
