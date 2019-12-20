@@ -182,7 +182,13 @@ string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
   if (VERBOSE)
     fprintf(stderr, "[%d][WEB] S: Generating Inbox... [localhost]\r\n", sock);
   string HTML =
-      "<html><body><h1>Inbox</h1>"
+      "<html><head><style>li {display:inline}</style></head><body><ul>"
+			"<li><a href=\"/index.html\">Home</a></li>&nbsp;"
+			"<li><a href=\"/mail/inbox\">Mail</a></li>&nbsp;"
+			"<li><a href=\"/storage.html\">Storage</a></li>"
+			"<form action='/handle_logout' method='post' style='display:inline;'>"
+			"	<button type='submit' name='logout' value='logout'>Logout</button></form>"
+		  "</ul><h1>Inbox</h1>"
       "<a href='/mail/compose'>Send Mail</a><br><br>";
   for (int i = 0; i < (int)(resp->num_emails); i++) {
     email_header head = resp->email_headers[i];
