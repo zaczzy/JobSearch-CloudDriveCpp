@@ -11,7 +11,7 @@
 #include "data_types.h"
 
 #define MAX 8192 
-#define PORT 1201
+#define PORT 1203
 #define SA struct sockaddr 
 
 void func(int sockfd)

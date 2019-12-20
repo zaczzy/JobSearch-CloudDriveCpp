@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall -g -pthread
+CFLAGS=-Wall -g -pthread -std=c++11
 
 TARGETS = fes
 all: $(TARGETS)

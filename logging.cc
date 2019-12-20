@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <fstream>
 #include <vector>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #define LOG_FILE            "key_value.log"
 extern char log_file[256];
@@ -367,6 +369,295 @@ int replay_log()
                     char* password = strtok(NULL, " ");
                     
                     delete_user(username, password);
+                }
+                break;
+            default:
+                printf("default log replay case\n");
+                break;
+        }
+
+    };
+
+    ifs.close();
+#endif
+    return 0; // zac added
+}
+
+int transfer_log(int cfd, int req_sequence_no, int requestor_id)
+{
+#ifdef SERIALIZE
+    /** Deserialize data from file */
+    int type;
+    std::ifstream ifs(log_file);
+    
+    if (verbose)
+        printf("Replaying log\n");
+    
+    pthread_mutex_lock(&log_file_mutx);
+    FILE* file = fopen(seq_no_file, "r");
+
+    if (file == NULL)
+    {
+        if (verbose)
+            printf("unable to open sequence no file. Error : %s\n", strerror(errno));
+        
+        exit(EXIT_FAILURE);
+    }
+
+    char* seq_no_str;
+    size_t len = 0;
+    int ret = getline(&seq_no_str, &len, file);
+
+    unsigned long long sequence_no;
+    if (ret != -1)
+    {
+        sequence_no = atoi(seq_no_str);
+
+        if (verbose)
+            printf("primary current seq no: %llu\n", sequence_no);
+    }
+    fclose(file);
+    
+    pthread_mutex_unlock(&log_file_mutx);
+       
+    unsigned long long ctr = req_sequence_no;
+    unsigned long long i = 0;
+    logging_consensus transfer_struct;
+
+    while (i++ < sequence_no)
+    {
+        boost::archive::text_iarchive ia(ifs);
+        ia >> type;
+        printf("type: %d\n", type);
+        
+        switch(type)
+        {
+            case ADD_FILE:
+                {
+                    put_file_request req;
+                    int req_len = sizeof(put_file_request);
+                    ia >> req;
+
+                    /** Add the file */
+                    if(i > ctr) {
+                      
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, &req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+
+                      //store_file(&req);
+
+                    }
+                }
+                break;
+            case ADD_FOLDER:
+                {
+                    create_folder_request req;
+                    int req_len = sizeof(create_folder_request);
+                    ia >> req;
+
+                    /** Add the file */
+                    if(i > ctr) {
+
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, &req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+
+                      //create_folder(&req);
+
+                    }
+                }
+                break;
+            case ADD_EMAIL:
+                {
+                   put_mail_request req;
+                   int req_len = sizeof(put_mail_request);
+                   ia >> req;
+
+                    /** Add the email */
+                    if(i > ctr) {
+                      //store_email(&req);
+                     
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, &req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+                     
+                    }
+                }
+                break;
+            case ADD_USER:
+                {
+                    char* command;
+                    SerializeCStringHelper helper(command);
+                    ia >> helper;
+                    
+                    if(i > ctr) {
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, command, strlen(command)+ 1); 
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+                     
+                    }
+                }
+                break;
+            case CHNG_PW:
+                {
+                    char* command;
+                    SerializeCStringHelper helper(command);
+                    ia >> helper;
+
+                    char* username = strtok(command + strlen("changepw"), " ");
+                    char* old_password = strtok(NULL, " ");
+                    char* new_password = strtok(NULL, " ");
+
+                    if(i > ctr) {
+                      //change_password(username, old_password, new_password);
+                    /*
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 0;
+                      memcpy(transfer_struct.data, req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+                    */
+                    }
+                }
+                break;
+            case DELETE_FILE:
+                {
+                    delete_file_request* req;
+                    int req_len = sizeof(delete_file_request);
+                    ia >> req;
+
+                    /** Add the file */
+                    if(i > ctr) {
+                      //delete_file(req);
+
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, &req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+                    }
+                }
+                break;
+            case DELETE_FOLDER:
+                {
+                    delete_folder_content_request req;
+                    int req_len = sizeof(delete_folder_content_request);
+                    ia >> req;
+
+                    /** Add the file */
+                    if(i > ctr) {
+                      //delete_folder(&req);
+
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, &req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+
+                    }
+                }
+                break;
+            case DELETE_EMAIL:
+                {
+                    delete_mail_request req;
+                    int req_len = sizeof(delete_mail_request);
+                    ia >> req;
+
+                    /** Delete the file */
+                    if(i > ctr) {
+                      //delete_mail(&req);
+
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = requestor_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 5555;
+                      memcpy(transfer_struct.data, &req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+
+                    }
+                }
+                break;
+            case DELETE_USER:
+                {
+                    char* command;
+                    SerializeCStringHelper helper(command);
+                    ia >> helper;
+
+                    char* username = strtok(command + strlen("add"), " ");
+                    char* password = strtok(NULL, " ");
+                    
+                    if(i > ctr) {
+                      //delete_user(username, password);
+                   /* 
+                      transfer_struct.primaryId = -1;
+                      transfer_struct.glbl_seq_num = -1;
+                      transfer_struct.requestor_id = myserver_id;
+                      transfer_struct.seq_num = -1;
+                      transfer_struct.is_commit = 0;
+                      memcpy(transfer_struct.data, req, req_len);
+                      int send_bytes = send(cfd, &transfer_struct, sizeof(logging_consensus), 0);
+                      if(send_bytes < sizeof(logging_consensus)) 
+                      {
+                        perror("Couldn't send message to log transfer requestor!\n");
+                      }
+                    */
+                    }
                 }
                 break;
             default:

@@ -61,6 +61,7 @@ uint8_t total_servers = 0;
 uint8_t server_id;
 pthread_t gossip_th;
 pthread_mutex_t log_file_mutx;
+uint8_t disabled_flag = 0;
 
 void* run_server_for_admin(void* args);
 
@@ -518,6 +519,51 @@ void* read_admin_commands(int client_fd)
             //        fprintf(stderr, "Error creating thread\n");
             //    exit(EXIT_FAILURE);
             //}
+
+            /** TODO: Free locks if acquiree any */
+            disabled_flag = 1;
+        }
+        else if (strncmp(buffer, "restart", strlen("restart")) == 0)
+        {
+          terminate = false;
+
+          /** Replay logs from log file */
+          replay_log();
+
+          /** Open the connection to master */
+          create_socket_for_master();
+
+          /** Run the main listener thread again */
+          //pthread_t thread;
+          //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
+
+          /** Run the main listener thread again */
+          //pthread_t thread;
+          //int iret1 = pthread_create(&thread, NULL, run_storage_server, NULL);
+
+          //if (iret1 != 0)
+          //{
+          //    if  (verbose)
+          //        fprintf(stderr, "Error creating thread\n");
+          //    exit(EXIT_FAILURE);
+          //}
+          disabled_flag = 0;
+
+          long long mylog_seq = get_log_sequence_no();
+          const char *transfer = "-TRANSFER";
+          logging_consensus transfer_struct;
+          transfer_struct.primaryId = -1;
+          transfer_struct.glbl_seq_num = mylog_seq;
+          transfer_struct.requestor_id = myserver_id;
+          transfer_struct.seq_num = -1;
+          transfer_struct.is_commit = 0;
+          memcpy(transfer_struct.data, transfer, strlen(transfer));
+          int send_bytes = send(gserver_fd[1], &transfer_struct, sizeof(logging_consensus), 0);
+          if(send_bytes < sizeof(logging_consensus)) 
+          {
+            perror("Couldn't send message to log transfer requestor!\n");
+          }
+
         }
     }
     return NULL; // zac inserted
