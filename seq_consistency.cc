@@ -34,6 +34,8 @@ pthread_t peer_th[10];
 pthread_t primary_th;
 uint8_t block_flag = 0;
 uint8_t is_checkpoint_block = 0;
+uint8_t is_transfer_block = 0;
+extern uint8_t disabled_flag;
 int send_count = 0;
 
 typedef struct hold_que {
@@ -177,7 +179,8 @@ int ensure_consistency(uint8_t *req, int req_len, int fd)
     req_sequentialize((uint8_t *)&log_struct, sizeof(logging_consensus), primary_fd);    //Send request to primary after appending its own FIFO ordering
     block_flag = 1;
     while(block_flag == 1){printf("Blocked\n"); sleep(1);}
-    process_command((char *)log_struct.data, sizeof(log_struct.data), fd);
+    if(disabled_flag == 0)
+      process_command((char *)log_struct.data, sizeof(log_struct.data), fd);
     printf("processing command in non-primary block\n");
 
 
@@ -321,7 +324,9 @@ void *listen_peer(void *arg)
 
    } else if(!strcasecmp((char *)log_struct.data, "+CHECKPOINT")) {
        printf("received CHECKPOINT at server_id %d\n", myserver_id);
-       take_checkpoint();
+
+       if(disabled_flag == 0)
+        take_checkpoint();
 
        const char *ack_data = "+CP_ACK";
        memset(&send_struct, 0, sizeof(logging_consensus));
@@ -339,11 +344,18 @@ void *listen_peer(void *arg)
            perror("Couldn't send ACK message to primary!");
        }
 
+   } else if(log_struct.is_commit == 5555) {
+
+     printf("Received transfer file from primary\n") ;  
+     if(disabled_flag == 0)
+       process_command((char *)log_struct.data, sizeof(log_struct.data), -1);
+     continue;
    } else if(log_struct.is_commit == 1) {
-       //doLocalcommit(log_struct.data);
-       if(log_struct.requestor_id != myserver_id) {
+     //doLocalcommit(log_struct.data);
+     if(log_struct.requestor_id != myserver_id) {
            printf("processing command in non-primary\n");
-           process_command((char *)log_struct.data, sizeof(log_struct.data), -1);
+           if(disabled_flag == 0)
+            process_command((char *)log_struct.data, sizeof(log_struct.data), -1);
        }
 
        const char *ack_data = "+ACK";
@@ -432,6 +444,15 @@ void *primary_sequentialize(void *arg) {
 
     pthread_mutex_unlock(&hold_q_mutex);
  
+    if(!strcasecmp((char *)rd_log_struct.data, "-TRANSFER"))
+    {
+      printf("Received -TRANSFER, Initiate transfer\n");
+      is_transfer_block = 1;
+      int transfer_cfd = (sid2cfd.find(rd_log_struct.requestor_id)->second);
+      transfer_log(transfer_cfd , rd_log_struct.glbl_seq_num, rd_log_struct.requestor_id );
+      continue;
+    }
+
     log_struct.primaryId = myserver_id;
     log_struct.glbl_seq_num = glbl_seq_num;
     log_struct.requestor_id = rd_log_struct.requestor_id;
@@ -443,16 +464,18 @@ void *primary_sequentialize(void *arg) {
       if(sid2cfditr->first != log_struct.primaryId)
         peer_count++;
     }
-
-    ackitr = acktrack.find(log_struct.requestor_id);
-    if(ackitr == acktrack.end()) {
-      map<int, int> temp_m;
-      temp_m.insert(std::pair<int, int>(log_struct.seq_num, peer_count));
-      acktrack.insert(std::pair<int, map<int,int> >(log_struct.requestor_id, temp_m));
-    } else {
-      (ackitr->second).insert(std::pair<int, int>(log_struct.seq_num, peer_count)) ;
-    }
     
+    if(peer_count > 0) {
+      ackitr = acktrack.find(log_struct.requestor_id);
+      if(ackitr == acktrack.end()) {
+        map<int, int> temp_m;
+        temp_m.insert(std::pair<int, int>(log_struct.seq_num, peer_count));
+        acktrack.insert(std::pair<int, map<int,int> >(log_struct.requestor_id, temp_m));
+      } else {
+        (ackitr->second).insert(std::pair<int, int>(log_struct.seq_num, peer_count)) ;
+      }
+    }
+
     ackitr = acktrack.find(log_struct.requestor_id);
     
     for(subackitr = (ackitr->second).begin(); subackitr != (ackitr->second).end(); ++subackitr) 
@@ -515,14 +538,10 @@ for(int i = 0; i < num_gserver_fd; i++) {
   if(log_struct.requestor_id != myserver_id) {
     printf("processing command in primary\n");
     process_command((char *)log_struct.data, sizeof(log_struct.data), -1);
-  } 
-  /*
-  else if(peer_count == 0) {    
+  } else if(log_struct.requestor_id == log_struct.primaryId) {
     block_flag = 0;
+    sleep(1); 
   }
-*/
-  if(log_struct.requestor_id == log_struct.primaryId)
-    block_flag = 0;
 
     memset(&log_struct, 0, sizeof(logging_consensus));
 
@@ -551,10 +570,14 @@ for(int i = 0; i < num_gserver_fd; i++) {
             }
         }
         printf("Primary takes checkpoint\n");
-        is_checkpoint_block = 1;
-        take_checkpoint();
-        while(is_checkpoint_block == 1) {printf("cp blocked\n"); sleep(1);} 
-        printf("Checkpoint unblocked\n");
+
+        if(peer_count > 0) {        /* Used to ensure that it blocks on CP_ACK only if there are peers */
+          is_checkpoint_block = 1;  /* Need to set the flag before take_checkpoint, else sync issues arise */
+          take_checkpoint();
+          while(is_checkpoint_block == 1) sleep(1);
+        } else {
+          take_checkpoint();
+        }
         glbl_seq_num++;
     }
 

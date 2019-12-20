@@ -23,5 +23,6 @@ unsigned long long get_checkpoint_version_no();
 void update_log_file(char* data, unsigned long size);
 int add_log_entry(op_type type, void* data);
 int replay_log();
+int transfer_log(int cfd, int req_sequence_no, int requestor_id);
 
 #endif
