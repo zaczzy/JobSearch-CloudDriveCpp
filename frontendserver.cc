@@ -20,13 +20,6 @@
 
 using namespace std;
 
-//bool VERBOSE = false;
-//bool shutdownFlag;
-//set<int> socks;
-
-int backendSock = -1;
-int loadbalancerSock = -1;
-//pthread_mutex_t mutex_backendSock = PTHREAD_MUTEX_INITIALIZER;
 set<pthread_t> webThreads;
 set<pthread_t> controlThreads;
 set<int> socks;
@@ -137,6 +130,8 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 	}
 }
 
+
+
 /*
  * Callback from main thread upon initialization of worker thread.
  * Initializes a SingleConnServerHTML
@@ -144,7 +139,6 @@ void readConfig_fes(char *configFile, int configID, string *webIP, int *webPort,
 void *webThreadFunc(void *args){
 	struct web_thread_struct *a = (struct web_thread_struct *)args;
 	int clntSock = (intptr_t)(a->clntSock);
-//	int backendSock = (intptr_t)(a->backendSock);
 	string webroot = (string)(a->webroot);
 	CookieRelay *CR = (CookieRelay *)(a->CR);
 	BackendRelay *BR = (BackendRelay *)(a->BR);
@@ -175,15 +169,12 @@ void *controlThreadFunc(void *args){
 
 /*
  * Run command:
- * $ ./cloud 1 -v
+ * $ ./fes 1 -v
  */
 int main(int argc, char *argv[])
 {
 
 	int c;
-//	int N = 0;
-//	int webPort = 8000;
-//	string webroot = "localhost";
 
 	//signal handling
 	struct sigaction action;
@@ -227,33 +218,24 @@ int main(int argc, char *argv[])
 	int webSock = createServerSocket(webPort);
 	//Control socket for load balancer
 	int controlSock = createServerSocket(controlPort);
-	//Client socket for backend
-	backendSock = createClientSocket(BACKEND_PORT);
+	//Client socket for master
+	int masterSock = createClientSocket(MASTER_PORT);
 	if (VERBOSE)
-		fprintf(stderr, "S: connected to [%d] (B)!\n", backendSock);
-	// unsigned short int config_pair[2] = {0,0};
-	// write(backendSock, &config_pair, sizeof(config_pair));
+		fprintf(stderr, "S: connected to [%d]! (M)\n", masterSock);
 	//Manually signal when load balancer is ready
 	pauseBeforeConnect();
 	//Client socket for load balancer (for cookies??)
-	loadbalancerSock = createClientSocket(COOKIE_PORT);
+	int loadbalancerSock = createClientSocket(COOKIE_PORT);
 	if (VERBOSE)
-		fprintf(stderr, "S: connected to [%d] (LB)!\n", loadbalancerSock);
-
-	//Clear welcome message from backend socket
-	char buff[BUFF_SIZE];
-	memset(buff, 0, sizeof(buff));
-	read(backendSock, buff, sizeof(buff));
-	if (VERBOSE)
-		fprintf(stderr, "%s\n", buff);
+		fprintf(stderr, "S: connected to [%d]! (LB)\n", loadbalancerSock);
 
 	socks.insert(webSock);
 	socks.insert(controlSock);
-	socks.insert(backendSock);
+//	socks.insert(backendSock);
 	socks.insert(loadbalancerSock);
 
 	//Relay messages through backend
-	BackendRelay BR(backendSock);
+	BackendRelay BR(masterSock);
 	//Relay cookies with load balancer
 	CookieRelay CR(loadbalancerSock);
 	while (true) {

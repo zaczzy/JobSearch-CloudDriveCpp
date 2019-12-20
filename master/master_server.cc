@@ -9,7 +9,7 @@
 #define SEAS_LOGIN "zhaozeyu"
 #define FULL_NAME "Zeyu Zhao"
 #define QUEUE_LENGTH 50
-#define NUM_THREADS 3
+#define NUM_THREADS 10
 using namespace std;
 
 void sig_handler(int signo) {
@@ -84,8 +84,9 @@ int main(int argc, char *argv[]) {
   actions.sa_flags = 0;
   actions.sa_handler = sig_handler;
   exit_guard(sigaction(SIGINT, &actions, NULL), "Error: Cannot catch SIGINT");
-  exit_guard(sigaction(SIGUSR1, &actions, NULL),
-             "Error: Cannot catch SIGUSER1");
+//  exit_guard(sigaction(SIGUSR1, &actions, NULL),
+//             "Error: Cannot catch SIGUSER1");
+// FIXME: why catch siguser1
 
   init_thread_pool(NUM_THREADS, my_handler);
   int server_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -102,35 +103,6 @@ int main(int argc, char *argv[]) {
         // accept failure
         perror("Accept failed");
       }
-      terminate_thread_pool();
-      break;
-    }
-    // populate the sock2servid data structure, know who the client is
-    pair<int, int> temp;
-    bool hit;
-    for (map<int, vector<server_netconfig>>::iterator it = groups.begin();
-         it != groups.end(); it++) {
-      for (size_t j = 0; j < it->second.size(); j++) {
-        if (it->second[j].serv_addr.sin_addr.s_addr ==
-                client_addr.sin_addr.s_addr &&
-            it->second[j].serv_addr.sin_port == client_addr.sin_port) {
-          // found the sender
-          temp.first = it->first;
-          temp.second = j;
-          sock2servid[socket_fd] = temp;
-          hit = true;
-          if (it->second[j].status == Dead) {
-            it->second[j].status = Alive;
-          }
-          break;
-        }
-        if (hit) {
-          break;
-        }
-      }
-    }
-    if (!hit) {
-      cerr << "Cannot find who the sender of request is!" << endl;
       terminate_thread_pool();
       break;
     }

@@ -355,7 +355,7 @@ void parse_args(int argc, char *argv[], char* config_file, unsigned short* group
     *server_no = atoi(argv[optind]);
 }
 
-void create_socket_for_master()
+void create_socket_for_master(unsigned int group_no, unsigned short server_no)
 {
     if (verbose)
         printf("running client for communication with master\n");
@@ -369,7 +369,7 @@ void create_socket_for_master()
     } 
     else
     {
-        printf("Socket successfully created..\n"); 
+        printf("Socket successfully created..\n");
     }
     
     bzero(&servaddr, sizeof(servaddr)); 
@@ -385,7 +385,11 @@ void create_socket_for_master()
     } 
     else
     {
-        printf("connected to the master server..\n"); 
+        printf("connected to the master server..\n");
+        unsigned short id_stuff[2];
+		id_stuff[0] = group_no;
+		id_stuff[1] = server_no;
+		write(master_sockfd, id_stuff, sizeof(id_stuff));
     }
 }
 void *gossip_server(void *arg) 
@@ -652,7 +656,7 @@ int main(int argc, char *argv[])
     }
 
     /** Create socket for communication with master */
-    create_socket_for_master();
+    create_socket_for_master(group_no, server_no);
 
     pthread_join(thread, NULL);
     pthread_join(thread2, NULL);

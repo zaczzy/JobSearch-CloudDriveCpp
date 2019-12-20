@@ -60,7 +60,7 @@ int SingleConnServerHTML::sendMsg(string msg) {
   char *m = (char *)msg.c_str();
   int i = write(sock, m, strlen(m));
   if (shutdownFlag || i < 0) die("Shutdown flag or write fail");
-  if (VERBOSE) fprintf(stderr, "[%d][WEB] S: {%s}\n", sock, m);
+  // if (VERBOSE) fprintf(stderr, "[%d][WEB] S: {%s}\n", sock, m);
   return 1;
 }
 
@@ -164,11 +164,31 @@ string SingleConnServerHTML::readHTMLFromFile(string fname) {
   return HTML;
 }
 
+string SingleConnServerHTML::readFavicon(string fname) {
+  string HTML = "";
+  ifstream infile(fname);
+  if (!infile) {
+    string msg = "Can't open " + fname + "\n";
+    die(msg);
+  }
+  string line;
+  while (getline(infile, line)) {
+    HTML += line;
+  }
+  return HTML;
+}
+
 string SingleConnServerHTML::generateInbox(get_mail_response *resp) {
   if (VERBOSE)
     fprintf(stderr, "[%d][WEB] S: Generating Inbox... [localhost]\r\n", sock);
   string HTML =
-      "<html><body><h1>Inbox</h1>"
+      "<html><head><style>li {display:inline}</style></head><body><ul>"
+			"<li><a href=\"/index.html\">Home</a></li>&nbsp;"
+			"<li><a href=\"/mail/inbox\">Mail</a></li>&nbsp;"
+			"<li><a href=\"/storage.html\">Storage</a></li>"
+			"<form action='/handle_logout' method='post' style='display:inline;'>"
+			"	<button type='submit' name='logout' value='logout'>Logout</button></form>"
+		  "</ul><h1>Inbox</h1>"
       "<a href='/mail/compose'>Send Mail</a><br><br>";
   for (int i = 0; i < (int)(resp->num_emails); i++) {
     email_header head = resp->email_headers[i];
@@ -198,6 +218,19 @@ string SingleConnServerHTML::generateLogin(string msg) {
   string post = HTML.substr(i_marker + 9);
   return pre + msg + post;
 }
+/*
+ * Generate 200 headers for favicon
+ */
+static string getFaviconHeaders(int length = 0) {
+  string statusLine = "HTTP/1.1 200 OK\r\n";
+  // if body exists
+  if (length > 0) {
+    statusLine += "Content-Type: image/x-icon\r\n";
+    statusLine += "Content-Length: " + to_string(length) + "\r\n";
+  }
+  statusLine += "\r\n";
+  return statusLine;
+}
 
 /*
  * Handle GET request
@@ -205,7 +238,10 @@ string SingleConnServerHTML::generateLogin(string msg) {
 void SingleConnServerHTML::handleGET(bool HEAD = false) {
   // ignore favicons
   if (requestURI.compare("/favicon.ico") == 0) {
-    sendStatus(200);
+    string favicon_binary = readFavicon("templates/favicon.ico");
+    string header = getFaviconHeaders(favicon_binary.size());
+    favicon_binary.insert(0, header);
+    write(sock, favicon_binary.c_str(), favicon_binary.size());
     return;
   }
 
@@ -257,8 +293,6 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
   } else if (!requestURI.substr(0, 3).compare("/ls")) {
     string URI = requestURI.substr(3);  // "/r00t/dir1"
     string path, folder;                // "/r00t", "/you%20think"
-    // replace_all_occurrences(folder, "%20", " "); //TODO: fix
-    cout << "You can do it later: " << folder << endl;
     split_filename(URI, path, folder);
     HTML = readHTMLFromFile("templates/storage.html");
     // get file names from backend
@@ -334,7 +368,7 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
     }
     handleGET();
     return;
-  }else {
+  } else {
     // Resource not found
     sendStatus(404);
     return;
@@ -343,7 +377,23 @@ void SingleConnServerHTML::handleGET(bool HEAD = false) {
   sendHeaders(HTML.length());
   if (!HEAD) sendMsg(HTML);
 }
-
+static void ascii_filter(string& s) {
+  
+  vector<string> wrong = {"+", "%21", "%22", "%23","%24","%25","%26","%27","%28","%29","%2A","%2B","%2C","%2D","%2E","%2F",
+  "%3A","%3B","%3C","%3D","%3E",
+  "%3F","%40","%5B","%5C","%5D",
+  "%5E","%5F","%60", "%7B","%7C","%7D","%7E"};
+  vector<string> right = {" ", "!", "\"", "#", "$", "%", "&", "\'", "(", ")", "*", "+",",", "-", ".", "/", 
+  ":", ";", "<", "=" , ">", 
+  "?", "@", "[", "\\", "]", 
+  "^", "_", "`", "{", "|", "}", "~"};
+  for (int i= 0; i < 33; i++){
+    string::size_type pos = 0;
+    while ((pos = s.find(wrong[i], pos)) != string::npos) {
+      s = s.replace(pos, sizeof(char), right[i]);
+    }
+  }
+}
 /*
  * Handle POST request
  */
@@ -411,7 +461,11 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     char *c_adduser = strtok(NULL, delim);
     string user = c_user + strlen("user=");
     string pass = c_pass + strlen("pass=");
-    //		cout << "\n===" << user << "," << pass << "===\n" << endl;
+
+    // bound to reconnect
+    pthread_mutex_lock(&(BR->mutex_sock));
+    BR->setNewBackendSock(user);
+    pthread_mutex_unlock(&(BR->mutex_sock));
 
     // Add new user
     if (c_adduser != NULL && strlen(c_adduser) > 0) {
@@ -419,7 +473,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
       // strlen("adduser=");
       string s_addCmd = "ADD " + user + " " + pass;
       pthread_mutex_lock(&(BR->mutex_sock));
-      BR->sendCommand(s_addCmd);
+      BR->sendCommand(s_addCmd, user);
       pthread_mutex_unlock(&(BR->mutex_sock));
 
       // redirect to login page
@@ -432,15 +486,14 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
 
     // Authenticate
     string s_authCmd = "AUTH " + user + " " + pass;
-    string authResult = BR->sendCommand(s_authCmd);
+    string authResult = BR->sendCommand(s_authCmd, user);
     string okerr = authResult.substr(0, 3);
     // if invalid credentials
 
     if (authResult.substr(0, 3).compare("+OK") != 0) {
       //		//hardcoded user/pass:
       //		if (user.compare("michal") != 0 || pass.compare("p") !=
-      // 0) { redirect to login page
-      // TODO: add message stating invalid credentials
+      // 0) {
       string HTML = generateLogin("<i>invalid credentials</i>");
       sendHeaders(HTML.length());
       sendMsg(HTML);
@@ -473,7 +526,7 @@ void SingleConnServerHTML::handlePOST(char *body, bool is_multipart_form,
     string to = c_rcpt + strlen("to=");
     string subject = c_subj + strlen("subject=");
     string message = c_msg + strlen("message=");
-
+    ascii_filter(message);
     cout << "{" << to << "\n" << subject << "\n" << message << "}" << endl;
 
     char b[BUFF_SIZE];  // unused
@@ -573,7 +626,7 @@ void SingleConnServerHTML::backbone() {
       continue;
     }
     requestURI = reqURI;
-
+    replace_all_occurrences(requestURI, "%20", " ");
     // check cookie
     int receivedCookie = -1;
     for (string header : headers) {
@@ -594,8 +647,7 @@ void SingleConnServerHTML::backbone() {
     // existing cookie, new connection
     else if (receivedCookie != -1 && cookieValue == -1) {
       // cout << "(B)" << endl;
-      // login automatically: will only work when cookie server is separate from
-      // singleconnserverhtml for now, just proceed (manual login)
+      // login automatically
       pthread_mutex_lock(&(CR->mutex_sock));
       string response = CR->fetchBrowser(receivedCookie);
       pthread_mutex_unlock(&(CR->mutex_sock));

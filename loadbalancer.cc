@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 			string fwdAddr = getFirstFreeServer(loads);
 
 			redirect(clntSock, fwdAddr);
-			//*socket closed*
+			//*socket closed* in redirect()
 		}
 		//cookie socket
 		else if (fds[1].revents & POLLIN) {

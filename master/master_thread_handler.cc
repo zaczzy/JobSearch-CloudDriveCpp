@@ -1,34 +1,40 @@
 //
 // Created by Zachary Zhao on 10/8/19.
 //
-#include "master_thread_handler.h"
+#include <iostream>
+//#include <stdio.h>
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string>
 #include "constants.h"
 #include "master_processor.h"
+#include "master_thread_handler.h"
 #include "server_config_store.h"
 #include "thread_pool.h"
 #include "util.h"
-#define BUFFER_SIZE 1002
+#define BUFFER_SIZE 2048
 using namespace std;
 void write_sock(int fd, const struct server_netconfig *server_config) {
+  cout << "Writing to fes" << endl;
   unsigned int wlen = sizeof(server_config->serv_addr), bytes_w = 0;
   do {
     unsigned int bytes_wt =
-        write(fd, &server_config->serv_addr, wlen - bytes_w);
+        write(fd, &(server_config->serv_addr), wlen - bytes_w);
     if (bytes_wt <= 0) {
       perror("write failed");
     } else {
       bytes_w += bytes_wt;
     }
   } while (bytes_w < wlen);
+  //	write(fd, &(server_config->serv_addr),
+  //sizeof(server_config->serv_addr)); 	cout << "Done" << endl;
 }
 void write_primary(int fd, int primary_id) {
-	write(fd, &primary_id, sizeof(int));
+  write(fd, &primary_id, sizeof(int));
 }
 static unsigned long find_crlf_begindex(char *str, unsigned long str_size) {
   unsigned long index;
@@ -52,15 +58,37 @@ static bool is_request_for_primary(string &req) {
   return endsWith(req, string("primary"));
 }
 int my_handler(int fd) {
+  unsigned short id_stuff[2];
+  memset(id_stuff, 218, sizeof(id_stuff));
+  read(fd, &id_stuff, sizeof(id_stuff));
+
+  cout << "Received [" << id_stuff[0] << " " << id_stuff[1] << "]" << endl;
+  // check if connection is from backend
+  if (id_stuff[0] != 0 || id_stuff[1] != 0) {
+    // check to register backends
+    pair<int, size_t> tmp;
+    tmp.first = (int)id_stuff[0];
+    tmp.second = (size_t)id_stuff[1];
+    sock2servid[fd] = tmp;
+    // mark backend as alive
+    groups[tmp.first][tmp.second - 1].status = Alive;
+  }
   char *buffer = new char[BUFFER_SIZE + 1];
   int bytes_read;
-  while (should_terminate()) {
+
+  //  main loop process command
+  while (!should_terminate()) {
     bytes_read = read(fd, buffer, BUFFER_SIZE);
     if (bytes_read <= 0) {
       // ending connection
       if (bytes_read == 0) {
-        cout << "client closed connection" << endl;
-        groups[sock2servid[fd].first][sock2servid[fd].second].status = Dead;
+        // if is backend
+        if (sock2servid.find(fd) != sock2servid.end()) {
+          cout << "☠️the backend that died was " << sock2servid[fd].first
+               << " " << sock2servid[fd].second << endl;
+          groups[sock2servid[fd].first][sock2servid[fd].second - 1].status =
+              Dead;
+        }
       } else {
         perror("read failed");
       }
@@ -69,7 +97,7 @@ int my_handler(int fd) {
       return 0;
     }
     // null terminal and create string instead
-    buffer[bytes_read] = 0;
+    buffer[bytes_read] = '\0';
     string buff_str = buffer;
     // process buffer
     if (is_request_for_primary(buff_str)) {
@@ -79,6 +107,7 @@ int my_handler(int fd) {
       process_command(buff_str, fd);
     }
   }
+
   delete[] buffer;
   return 1;
 }

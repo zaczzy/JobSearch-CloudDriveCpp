@@ -84,6 +84,7 @@ void read_config_file(char *config_name) {
         exit(-1);
       }
       tmp.serv_addr.sin_port = htons(tmp_port);
+      tmp.status = Dead;
       temp_vec.emplace_back(tmp);
     }
     groups.insert({line_count++, temp_vec});
