@@ -507,7 +507,7 @@ void* read_admin_commands(int client_fd)
           replay_log();
 
           /** Open the connection to master */
-          create_socket_for_master();
+          create_socket_for_master(group_no, server_no);
           disabled_flag = 0;
 
           long long mylog_seq = get_log_sequence_no();
